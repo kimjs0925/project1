@@ -1,0 +1,15 @@
+{
+  "name": "conflict-resolution-app",
+  "version": "1.0.0",
+  "description": "갈등 해결 활동 앱과 Gemini 분석 프록시 서버",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.1.4",
+    "express": "^4.18.4",
+    "undici": "^5.5.0"
+  }
+}

@@ -1,0 +1,1430 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>갈등 해결 활동 앱</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/wordcloud2.js@1.2.2/src/wordcloud2.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --color-midnight-abyss: #141414;
+      --color-ghost-white: #fdf9f0;
+      --color-lime-squeeze: #c7ff69;
+      --color-amethyst-glow: #7a78ff;
+      --color-sunset-orange: #ff6d38;
+      --color-emerald-sprint: #00a652;
+      --color-skybound-blue: #478bff;
+      --color-golden-rod: #ffc412;
+      --color-lavender-mist: #ccccff;
+      --color-text: #141414;
+      --color-muted: #5f5f5a;
+      --color-border: #e7dcb8;
+      --color-surface: #ffffff;
+
+      --font-body: 'Noto Sans KR', sans-serif;
+      --font-heading: 'Noto Sans KR', sans-serif;
+
+      --radius-card: 43.2px;
+      --radius-button: 25.146px;
+      --radius-pill: 9999px;
+      --border-width: 1.5px;
+
+      --spacing-sm: 10px;
+      --spacing-md: 18px;
+      --spacing-lg: 26px;
+      --spacing-xl: 36px;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: linear-gradient(180deg, #fefbf4 0%, #f5f0e1 100%);
+      color: var(--color-text);
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 760px;
+      padding: 26px;
+      border-radius: 43.2px;
+      background: var(--color-ghost-white);
+      box-shadow: inset 0 0 0 1px rgba(20, 20, 20, 0.04);
+    }
+
+    /* Header */
+    .app-header {
+      text-align: center;
+      margin-bottom: 1.75rem;
+    }
+    .app-header h1 {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--color-text);
+      margin-bottom: 6px;
+    }
+    .app-header p {
+      font-size: 15px;
+      color: var(--color-muted);
+      line-height: 1.5;
+    }
+
+    /* Tab bar */
+    .tab-bar {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 2rem;
+    }
+    .tab {
+      padding: 14px 18px;
+      border-radius: var(--radius-button);
+      background: var(--color-surface);
+      border: var(--border-width) solid var(--color-midnight-abyss);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--color-midnight-abyss);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .tab.active {
+      background: var(--color-lime-squeeze);
+      color: var(--color-midnight-abyss);
+      border-color: transparent;
+    }
+
+    /* Pages */
+    .page { display: none; }
+    .page.active { display: block; }
+    .sub-page { display: none; }
+    .sub-page.active { display: block; }
+
+    /* Card */
+    .card {
+      background: var(--color-surface);
+      border-radius: var(--radius-card);
+      border: var(--border-width) solid rgba(20,20,20,0.08);
+      padding: 26px;
+      margin-bottom: 18px;
+    }
+
+    .page-title {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--color-text);
+      margin-bottom: 8px;
+    }
+    .page-sub {
+      font-size: 15px;
+      color: var(--color-muted);
+      margin-bottom: 1.5rem;
+      line-height: 1.6;
+    }
+
+    /* Action buttons */
+    .action-btn {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      width: 100%;
+      padding: 18px 20px;
+      background: var(--color-surface);
+      border: var(--border-width) solid rgba(20,20,20,0.08);
+      border-radius: var(--radius-button);
+      cursor: pointer;
+      text-align: left;
+      margin-bottom: 14px;
+      transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+      font-family: inherit;
+    }
+    .action-btn:hover { background: #fbf8ef; border-color: rgba(20,20,20,0.16); transform: translateY(-1px); }
+    .action-btn:active { transform: translateY(0); }
+
+    .btn-icon {
+      width: 44px; height: 44px;
+      border-radius: var(--radius-pill);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; flex-shrink: 0;
+      color: var(--color-surface);
+    }
+    .icon-teal { background: var(--color-emerald-sprint); }
+    .icon-purple { background: var(--color-amethyst-glow); }
+    .icon-coral { background: var(--color-sunset-orange); }
+
+    .btn-text { flex: 1; }
+    .btn-title { font-size: 15px; font-weight: 700; color: var(--color-text); display: block; }
+    .btn-desc { font-size: 13px; color: var(--color-muted); margin-top: 4px; display: block; }
+    .btn-arrow { color: var(--color-muted); font-size: 16px; }
+
+    /* Back button */
+    .back-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 14px; color: var(--color-muted); cursor: pointer;
+      background: none; border: none; padding: 0; margin-bottom: 1.5rem;
+      font-family: inherit;
+    }
+    .back-btn:hover { color: var(--color-text); }
+
+    /* Situation card */
+    .situation-card {
+      background: var(--color-lavender-mist);
+      border: 1px solid rgba(122, 120, 255, 0.18);
+      border-radius: var(--radius-card);
+      padding: 22px 24px;
+      margin-bottom: 1.2rem;
+    }
+    .situation-label {
+      font-size: 12px; font-weight: 700; letter-spacing: 0.08em;
+      color: var(--color-midnight-abyss); margin-bottom: 10px; text-transform: uppercase;
+    }
+    .situation-text {
+      font-size: 15px; line-height: 1.8; color: var(--color-text);
+    }
+    .char-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .char-tag {
+      background: var(--color-surface); color: var(--color-midnight-abyss);
+      border: var(--border-width) solid rgba(20,20,20,0.08);
+      border-radius: var(--radius-button); padding: 6px 14px; font-size: 13px; font-weight: 700;
+    }
+
+    /* Form elements */
+    label.field-label {
+      display: block; font-size: 14px; font-weight: 700;
+      color: var(--color-text); margin-bottom: 8px;
+    }
+    input[type="text"], input[type="url"], select, textarea {
+      width: 100%;
+      padding: 14px 16px;
+      border: var(--border-width) solid var(--color-border);
+      border-radius: var(--radius-button);
+      font-family: inherit;
+      font-size: 15px;
+      color: var(--color-text);
+      background: var(--color-surface);
+      outline: none;
+      transition: border-color 0.15s ease, transform 0.15s ease;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--color-amethyst-glow); transform: translateY(-1px); }
+    textarea { resize: vertical; min-height: 96px; line-height: 1.8; }
+    select { appearance: none; cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'%3E%3Cpath fill='%23141414' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 16px center; padding-right: 38px; }
+
+    .field-group { margin-bottom: 12px; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 12px 20px;
+      border-radius: var(--radius-button);
+      font-family: inherit; font-size: 14px; font-weight: 700;
+      cursor: pointer; border: var(--border-width) solid transparent;
+      background: var(--color-surface); color: var(--color-text);
+      transition: all 0.15s ease;
+    }
+    .btn:hover { background: #f8f5ee; }
+    .btn-primary { background: var(--color-lime-squeeze); color: var(--color-midnight-abyss); border-color: transparent; }
+    .btn-primary:hover { background: #b7eb55; }
+    .btn-full { width: 100%; }
+    .btn-sm { padding: 10px 16px; font-size: 13px; }
+
+    /* Char tag edit */
+    .char-edit-tag {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--color-surface);
+      color: var(--color-text);
+      border: var(--border-width) solid rgba(20,20,20,0.08);
+      border-radius: var(--radius-button); padding: 8px 14px; font-size: 13px;
+      margin: 0 8px 8px 0;
+    }
+    .char-edit-tag button {
+      background: none; border: none; cursor: pointer; color: var(--color-midnight-abyss);
+      font-size: 14px; padding: 0; line-height: 1; display: flex; align-items: center;
+    }
+    .char-criteria-row {
+      margin-bottom: 12px;
+    }
+    .char-criteria-row textarea {
+      min-height: 64px;
+      margin-top: 6px;
+    }
+
+    /* Emotion list */
+    .emotion-item {
+      border: var(--border-width) solid rgba(20,20,20,0.08);
+      border-radius: var(--radius-button);
+      padding: 14px 16px; margin-bottom: 10px; background: var(--color-surface);
+      transition: all 0.2s ease;
+      position: relative;
+    }
+    .emotion-item:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(20,20,20,0.08);
+      border-color: rgba(122, 120, 255, 0.2);
+    }
+    .emotion-who {
+      font-size: 12px; color: var(--color-muted); margin-bottom: 6px;
+      display: flex; align-items: center;
+    }
+    .emotion-who::before {
+      content: '👤';
+      margin-right: 6px;
+      font-size: 14px;
+    }
+    .emotion-text {
+      font-size: 15px; color: var(--color-text); line-height: 1.7;
+    }
+
+    /* Admin sections */
+    .admin-section { margin-bottom: 1.25rem; }
+    .section-title {
+      font-size: 12px; font-weight: 700; letter-spacing: 0.12em;
+      color: var(--color-muted); text-transform: uppercase; margin-bottom: 14px;
+      position: relative;
+      padding-left: 16px;
+    }
+    .section-title::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-lime-squeeze);
+    }
+
+    .inline-group {
+      display: flex; gap: 12px;
+      align-items: stretch;
+    }
+    .inline-group input {
+      flex: 1;
+      border-radius: var(--radius-button);
+      transition: all 0.15s ease;
+    }
+    .inline-group input:focus {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(122, 120, 255, 0.15);
+    }
+
+    /* Word Cloud Canvas */
+    #wordcloud-canvas {
+      width: 100% !important;
+      max-width: 500px;
+      height: 320px !important;
+      border-radius: var(--radius-card);
+      background: linear-gradient(135deg, var(--color-lavender-mist) 0%, var(--color-surface) 100%);
+      border: var(--border-width) solid rgba(20,20,20,0.06);
+      margin: 0 auto;
+      display: block;
+      box-shadow: inset 0 2px 8px rgba(20,20,20,0.04);
+      transition: all 0.3s ease;
+    }
+    #wordcloud-canvas:hover {
+      transform: scale(1.02);
+      box-shadow: 0 8px 25px rgba(122, 120, 255, 0.15);
+    }
+
+    /* Card Variations */
+    .card-accent {
+      background: linear-gradient(135deg, var(--color-amethyst-glow) 0%, var(--color-lavender-mist) 100%);
+      color: var(--color-surface);
+      border: var(--border-width) solid rgba(122, 120, 255, 0.2);
+    }
+    .card-accent .field-label,
+    .card-accent .section-title {
+      color: var(--color-surface);
+    }
+    .card-accent input,
+    .card-accent textarea,
+    .card-accent select {
+      background: rgba(255, 255, 255, 0.9);
+      border-color: rgba(255, 255, 255, 0.3);
+      color: var(--color-midnight-abyss);
+    }
+    .card-accent input:focus,
+    .card-accent textarea:focus,
+    .card-accent select:focus {
+      border-color: var(--color-surface);
+      background: var(--color-surface);
+    }
+
+    .card-success {
+      background: linear-gradient(135deg, var(--color-emerald-sprint) 0%, #e8f5e8 100%);
+      border: var(--border-width) solid rgba(0, 166, 82, 0.2);
+    }
+
+    .card-warm {
+      background: linear-gradient(135deg, var(--color-sunset-orange) 0%, #fff3e0 100%);
+      border: var(--border-width) solid rgba(255, 109, 56, 0.2);
+    }
+
+    /* Enhanced Animations */
+    .action-btn {
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .action-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(199, 255, 105, 0.25);
+    }
+    .action-btn:active {
+      transform: translateY(0);
+      transition-duration: 0.1s;
+    }
+
+    .btn {
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+    .btn:active {
+      transform: translateY(0);
+      transition-duration: 0.1s;
+    }
+
+    .tab {
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .tab:hover {
+      transform: translateY(-1px);
+    }
+
+    /* Decorative Elements */
+    .decorative-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--color-lime-squeeze);
+      margin: 0 8px;
+      vertical-align: middle;
+    }
+
+    .decorative-line {
+      height: 2px;
+      background: linear-gradient(90deg, var(--color-amethyst-glow), var(--color-lime-squeeze));
+      border-radius: 1px;
+      margin: 16px 0;
+    }
+
+    /* Enhanced Icon Styles */
+    .icon-teal {
+      background: linear-gradient(135deg, var(--color-emerald-sprint), #00c853);
+      box-shadow: 0 2px 8px rgba(0, 166, 82, 0.3);
+    }
+    .icon-purple {
+      background: linear-gradient(135deg, var(--color-amethyst-glow), #5e35b1);
+      box-shadow: 0 2px 8px rgba(122, 120, 255, 0.3);
+    }
+    .icon-coral {
+      background: linear-gradient(135deg, var(--color-sunset-orange), #ff5722);
+      box-shadow: 0 2px 8px rgba(255, 109, 56, 0.3);
+    }
+
+    /* Notice Variations */
+    .notice {
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .notice::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: var(--color-lime-squeeze);
+    }
+    .notice.visible {
+      animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Enhanced Modal */
+    .modal-content {
+      animation: modalIn 0.3s ease-out;
+      box-shadow: 0 20px 60px rgba(20, 20, 20, 0.3);
+    }
+
+    @keyframes modalIn {
+      from {
+        opacity: 0;
+        transform: scale(0.9) translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+
+    /* Loading States */
+    .loading {
+      position: relative;
+      overflow: hidden;
+    }
+    .loading::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(199, 255, 105, 0.1), transparent);
+      animation: loading 1.5s infinite;
+    }
+
+    @keyframes loading {
+      0% { left: -100%; }
+      100% { left: 100%; }
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center; padding: 3rem 2rem;
+      color: var(--color-muted); font-size: 15px;
+      background: linear-gradient(135deg, rgba(122, 120, 255, 0.05), rgba(199, 255, 105, 0.05));
+      border-radius: var(--radius-card);
+      border: var(--border-width) dashed rgba(20,20,20,0.1);
+      margin: 1rem 0;
+    }
+    .empty-state::before {
+      content: '💭';
+      font-size: 2rem;
+      display: block;
+      margin-bottom: 1rem;
+      opacity: 0.6;
+    }
+
+    /* Modal */
+    .modal {
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(20,20,20,0.28); z-index: 1000; align-items: center; justify-content: center;
+    }
+    .modal-content {
+      background: var(--color-surface); padding: 24px; border-radius: var(--radius-card);
+      max-width: 340px; width: 90%; text-align: center;
+      border: var(--border-width) solid rgba(20,20,20,0.08);
+    }
+    .modal-content h3 { margin-bottom: 16px; font-size: 16px; }
+    .modal-content input, .modal-content select { margin-bottom: 16px; }
+    .modal-content button { margin: 0 8px; }
+
+    /* Student results */
+    .student-result {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 18px; border: var(--border-width) solid rgba(20,20,20,0.08);
+      border-radius: var(--radius-button);
+      margin-bottom: 10px; background: var(--color-surface);
+      transition: all 0.2s ease;
+    }
+    .student-result:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(20,20,20,0.08);
+      border-color: rgba(199, 255, 105, 0.2);
+    }
+    .student-name {
+      font-weight: 700; color: var(--color-text);
+      display: flex; align-items: center;
+    }
+    .student-name::before {
+      content: '👨‍🎓';
+      margin-right: 8px;
+      font-size: 16px;
+    }
+    .empathy-level {
+      display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--color-muted);
+    }
+  </style>
+</head>
+<body>
+
+<div class="app">
+  <div class="app-header">
+    <h1>🕊️ 갈등 해결 활동</h1>
+    <p>학생 · 관리자 통합 앱</p>
+  </div>
+
+  <div class="tab-bar">
+    <button class="tab active" onclick="switchTab('student')">👨‍🎓 학생 페이지</button>
+    <button class="tab" onclick="switchTab('admin')">⚙️ 관리자 페이지</button>
+  </div>
+
+  <!-- Admin Modal -->
+  <div class="modal" id="admin-modal">
+    <div class="modal-content">
+      <h3>관리자 암호 입력</h3>
+      <input type="password" id="admin-password" placeholder="암호를 입력하세요">
+      <button class="btn btn-primary" onclick="checkPassword()">확인</button>
+      <button class="btn" onclick="closeModal()">취소</button>
+    </div>
+  </div>
+
+  <!-- Student Modal -->
+  <div class="modal" id="student-modal">
+    <div class="modal-content">
+      <h3>학생 번호 선택</h3>
+      <select id="student-select">
+        <option value="">번호를 선택하세요</option>
+        <option value="1">1번</option>
+        <option value="2">2번</option>
+        <option value="3">3번</option>
+        <option value="4">4번</option>
+        <option value="5">5번</option>
+        <option value="6">6번</option>
+        <option value="7">7번</option>
+        <option value="8">8번</option>
+        <option value="9">9번</option>
+        <option value="10">10번</option>
+        <option value="11">11번</option>
+        <option value="12">12번</option>
+        <option value="13">13번</option>
+        <option value="14">14번</option>
+        <option value="15">15번</option>
+        <option value="16">16번</option>
+        <option value="17">17번</option>
+        <option value="18">18번</option>
+        <option value="19">19번</option>
+        <option value="20">20번</option>
+        <option value="21">21번</option>
+        <option value="22">22번</option>
+        <option value="23">23번</option>
+        <option value="24">24번</option>
+      </select>
+      <button class="btn btn-primary" onclick="selectStudent()">확인</button>
+      <button class="btn" onclick="closeStudentModal()">취소</button>
+    </div>
+  </div>
+
+  <!-- 학생 페이지 -->
+  <div id="student-page" class="page active">
+
+    <div id="student-home" class="sub-page active">
+      <p class="page-title">안녕하세요 👋 <span id="student-id-display"></span></p>
+      <p class="page-sub">활동을 선택해 시작해 보세요.</p>
+
+    <div class="decorative-line"></div>
+
+      <button class="action-btn" onclick="openLink('padlet')">
+        <div class="btn-icon icon-teal">✏️</div>
+        <div class="btn-text">
+          <span class="btn-title">갈등 상황 입력하기</span>
+          <span class="btn-desc">패들렛에서 갈등 상황을 작성해요</span>
+        </div>
+        <span class="btn-arrow">↗</span>
+      </button>
+
+      <button class="action-btn" onclick="goToSituation()">
+        <div class="btn-icon icon-purple">👀</div>
+        <div class="btn-text">
+          <span class="btn-title">문제 상황 확인하기</span>
+          <span class="btn-desc">상황을 보고 등장인물의 감정을 입력해요</span>
+        </div>
+        <span class="btn-arrow">→</span>
+      </button>
+
+      <button class="action-btn" onclick="openLink('notebooklm')">
+        <div class="btn-icon icon-coral">💬</div>
+        <div class="btn-text">
+          <span class="btn-title">갈등 상황 해결방법 대화하기</span>
+          <span class="btn-desc">노트북LM과 해결 방법을 대화해요</span>
+        </div>
+        <span class="btn-arrow">↗</span>
+      </button>
+    </div>
+
+    <div id="student-situation" class="sub-page">
+      <button class="back-btn" onclick="showSub('student-situation','student-home')">
+        ← 돌아가기
+      </button>
+      <p class="page-title">문제 상황 확인하기</p>
+
+      <div class="situation-card" id="sit-card">
+        <div class="situation-label">📋 문제 상황</div>
+        <div class="situation-text" id="sit-text-view">아직 선생님이 상황을 입력하지 않았어요.</div>
+        <div class="char-tags" id="sit-chars"></div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">상황 선택</label>
+        <select id="student-situation-select" onchange="changeStudentSituation(this.value)"></select>
+      </div>
+
+      <div class="card card-warm">
+          <select id="char-select"><option value="">인물을 선택하세요</option></select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">느꼈을 감정을 적어주세요</label>
+          <textarea id="emotion-input" placeholder="예: 억울하고 화가 났을 것 같아요."></textarea>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="submitEmotion()">감정 입력하기</button>
+      </div>
+
+      <div id="emotion-list"></div>
+    </div>
+
+  </div>
+
+  <!-- 관리자 페이지 -->
+  <div id="admin-page" class="page">
+    <p class="page-title">관리자 설정</p>
+    <p class="page-sub">상황과 링크를 입력한 뒤 저장하세요.</p>
+
+    <div class="decorative-line"></div>
+
+    <div class="card card-accent">
+      <div class="section-title">🔗 외부 링크 설정</div>
+
+      <div class="field-group">
+        <label class="field-label">패들렛 링크</label>
+        <input type="url" id="padlet-url" placeholder="https://padlet.com/...">
+      </div>
+      <div class="field-group">
+        <label class="field-label">노트북LM 링크</label>
+        <input type="url" id="notebooklm-url" placeholder="https://notebooklm.google.com/...">
+      </div>
+    </div>
+
+    <div class="card card-warm">
+      <div class="section-title">�️ 상황 관리</div>
+
+      <div class="field-group">
+        <label class="field-label">편집할 상황 선택</label>
+        <select id="admin-situation-select" onchange="selectAdminSituation(this.value)"></select>
+      </div>
+      <div class="field-group">
+        <label class="field-label">새 상황 제목</label>
+        <input type="text" id="situation-title" placeholder="예: 상황1">
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">문제 상황 내용</label>
+        <textarea id="situation-input" style="min-height:120px;" placeholder="학생들에게 보여줄 갈등 상황을 입력하세요."></textarea>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">등장인물 추가</label>
+        <div class="inline-group" style="margin-bottom:10px;">
+          <input type="text" id="char-name-input" placeholder="이름 입력 (예: 민준)" onkeydown="if(event.key==='Enter')addChar()">
+          <button class="btn btn-sm" onclick="addChar()">+ 추가</button>
+        </div>
+        <div id="char-tags-admin"></div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">각 등장인물 공감 기준</label>
+        <div id="char-criteria-admin"></div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary btn-full" onclick="saveSituation()">💾 상황 저장하기</button>
+    <button class="btn btn-sm" style="margin-top: 10px; width: 100%;" onclick="deleteSelectedSituation()">🗑️ 현재 상황 삭제</button>
+    <div class="notice" id="save-notice">✅ 저장되었습니다. 학생 페이지에 반영되었습니다.</div>
+
+    <div class="card card-success">
+      <div class="section-title">📁 저장된 상황 목록</div>
+      <div id="situation-list"></div>
+    </div>
+
+    <div class="card card-accent">
+      <div class="section-title">🧠 갈등 상황 요약 분석</div>
+      <div class="field-group">
+        <label class="field-label">패들렛/학생 입력 텍스트</label>
+        <textarea id="analysis-text-input" placeholder="패들렛에서 가져온 갈등 상황 내용을 붙여넣거나, 학생 입력 내용을 보충하여 분석할 수 있습니다."></textarea>
+      </div>
+      <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-bottom: 0.75rem;">
+        <button class="btn btn-sm" style="flex:1 1 auto; min-width: 180px;" onclick="fetchPadletContent()">패들렛 자동 불러오기</button>
+        <button class="btn btn-primary btn-full" style="flex:2 1 auto; min-width: 180px;" onclick="runGeminiAnalysis()">분석 실행</button>
+      </div>
+      <div class="notice" id="analysis-notice">✅ 분석 결과가 업데이트되었습니다.</div>
+      <div id="analysis-result" style="margin-top: 1rem;"></div>
+    </div>
+
+    <div class="card card-warm">
+      <div class="section-title">☁️ 감정 워드클라우드</div>
+      <canvas id="wordcloud-canvas" width="400" height="300" style="width: 100%; max-width: 400px;"></canvas>
+    </div>
+
+    <div class="card card-success">
+      <div class="section-title">📊 학생 공감 능력 결과</div>
+      <div id="student-results"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // State
+  let state = {
+    padletUrl: '',
+    notebooklmUrl: '',
+    situations: [],
+    chars: [],
+    students: {}, // {1: { responses: { situationId: [ {who,text,time} ] } }}
+    analysis: { summary: '', frequency: {}, details: '', updatedAt: '' }
+  };
+  let currentStudent = null;
+  let currentSituationId = '';
+
+  function persistState() {
+    try {
+      localStorage.setItem('conflictAppState', JSON.stringify(state));
+    } catch (e) {
+      console.warn('상태 저장 실패', e);
+    }
+  }
+
+  function migrateOldStudentData(parsed) {
+    const firstSituationId = state.situations[0]?.id;
+    if (!firstSituationId) return;
+    Object.entries(parsed.students || {}).forEach(([id, student]) => {
+      if (Array.isArray(student.emotions)) {
+        state.students[id] = { responses: { [firstSituationId]: student.emotions } };
+      }
+    });
+  }
+
+  function loadState() {
+    try {
+      const saved = localStorage.getItem('conflictAppState');
+      if (!saved) return;
+      const parsed = JSON.parse(saved);
+
+      if (Array.isArray(parsed.situations)) {
+        state.situations = parsed.situations.map((s, index) => ({
+          id: s.id || `situation-${Date.now()}-${index}`,
+          title: s.title || `상황${index + 1}`,
+          situation: s.situation || '',
+          chars: Array.isArray(s.chars) ? s.chars : [],
+          criteriaByChar: s.criteriaByChar && typeof s.criteriaByChar === 'object' ? s.criteriaByChar : {}
+        }));
+      } else if (parsed.situation || Array.isArray(parsed.chars)) {
+        state.situations = [{
+          id: 'situation-1',
+          title: '상황1',
+          situation: parsed.situation || '',
+          chars: Array.isArray(parsed.chars) ? parsed.chars : [],
+          criteriaByChar: {}
+        }];
+      }
+
+      state.padletUrl = parsed.padletUrl || '';
+      state.notebooklmUrl = parsed.notebooklmUrl || '';
+      state.students = parsed.students && typeof parsed.students === 'object' ? parsed.students : {};
+      state.analysis = parsed.analysis && typeof parsed.analysis === 'object'
+        ? { summary: parsed.analysis.summary || '', frequency: parsed.analysis.frequency || {}, details: parsed.analysis.details || '', updatedAt: parsed.analysis.updatedAt || '' }
+        : { summary: '', frequency: {}, details: '', updatedAt: '' };
+
+      if (Object.keys(state.students).length && state.situations.length) {
+        migrateOldStudentData(parsed);
+      }
+
+      currentSituationId = state.situations[0]?.id || '';
+      renderAdminFields();
+      renderSituationOptions('student-situation-select', true);
+    } catch (e) {
+      console.warn('상태 불러오기 실패', e);
+    }
+  }
+
+  function renderAdminFields() {
+    document.getElementById('padlet-url').value = state.padletUrl;
+    document.getElementById('notebooklm-url').value = state.notebooklmUrl;
+    renderSituationOptions('admin-situation-select', true);
+    renderSituationList();
+    renderAnalysisView();
+
+    if (currentSituationId) {
+      const situation = getSituationById(currentSituationId);
+      if (situation) {
+        document.getElementById('situation-title').value = situation.title;
+        document.getElementById('situation-input').value = situation.situation;
+        state.chars = Array.isArray(situation.chars) ? situation.chars.slice() : [];
+      } else {
+        currentSituationId = '';
+        document.getElementById('situation-title').value = '';
+        document.getElementById('situation-input').value = '';
+        state.chars = [];
+      }
+    } else {
+      document.getElementById('situation-title').value = '';
+      document.getElementById('situation-input').value = '';
+      state.chars = [];
+    }
+
+    renderCharTagsAdmin();
+    renderCharCriteriaInputs();
+  }
+
+  function getSituationById(id) {
+    return state.situations.find(s => s.id === id);
+  }
+
+  function renderSituationOptions(selectId, includeBlank) {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+    const items = state.situations.map(s => `<option value="${s.id}">${s.title}</option>`).join('');
+    select.innerHTML = `${includeBlank ? '<option value="">새 상황 만들기</option>' : ''}${items}`;
+    if (currentSituationId && state.situations.some(s => s.id === currentSituationId)) {
+      select.value = currentSituationId;
+    } else {
+      select.value = '';
+    }
+  }
+
+  function renderSituationList() {
+    const el = document.getElementById('situation-list');
+    if (!el) return;
+    if (!state.situations.length) {
+      el.innerHTML = '<div class="empty-state">저장된 상황이 없습니다.</div>';
+      return;
+    }
+    el.innerHTML = state.situations.map(s =>
+      `<div class="student-result">
+        <span class="student-name">${s.title}</span>
+        <span class="empathy-level">${s.situation.slice(0, 40)}${s.situation.length > 40 ? '…' : ''}</span>
+      </div>`
+    ).join('');
+  }
+
+  function buildAnalysisText() {
+    const rawText = document.getElementById('analysis-text-input')?.value.trim() || '';
+    const padletUrl = state.padletUrl?.trim() || '';
+    const studentEntries = Object.entries(state.students || {}).flatMap(([id, student]) =>
+      Object.entries(student.responses || {}).flatMap(([situationId, responses]) =>
+        responses.map(entry => `학생${id}번 상황ID:${situationId} 인물:${entry.who} 입력:${entry.text}`)
+      )
+    ).join('\n');
+
+    if (!rawText && !studentEntries) return '';
+    return `패들렛 원본 텍스트:
+${rawText || '(없음)'}
+${padletUrl ? `패들렛 링크: ${padletUrl}\n` : ''}
+학생 입력 데이터 요약:
+${studentEntries}`;
+  }
+
+  async function fetchPadletContent() {
+    const padletUrl = document.getElementById('padlet-url')?.value.trim() || '';
+    if (!padletUrl) {
+      alert('패들렛 URL을 먼저 입력해 주세요.');
+      return;
+    }
+
+    const resultEl = document.getElementById('analysis-result');
+    const notice = document.getElementById('analysis-notice');
+    notice.classList.remove('visible');
+    resultEl.innerHTML = '<div class="empty-state">패들렛 내용을 가져오는 중입니다... 잠시 기다려 주세요.</div>';
+
+    try {
+      const response = await fetch('/api/padlet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: padletUrl })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || '패들렛 내용을 가져오지 못했습니다.');
+
+      document.getElementById('analysis-text-input').value = data.content || '';
+      resultEl.innerHTML = '<div class="empty-state">패들렛 내용을 불러왔습니다. 필요하면 텍스트를 확인한 뒤 분석을 실행하세요.</div>';
+    } catch (error) {
+      resultEl.innerHTML = `<div class="empty-state">패들렛 자동 불러오기 중 오류가 발생했습니다: ${escapeHtml(error.message)}</div>`;
+    }
+  }
+
+  function renderAnalysisView() {
+    const el = document.getElementById('analysis-result');
+    if (!el) return;
+    if (!state.analysis || !state.analysis.summary) {
+      el.innerHTML = '<div class="empty-state">분석 결과가 아직 없습니다. 텍스트를 입력하고 분석을 실행해 주세요.</div>';
+      return;
+    }
+    const frequencyItems = Array.isArray(state.analysis.frequency)
+      ? state.analysis.frequency.slice()
+      : Object.entries(state.analysis.frequency || {}).map(([type, count]) => ({ type, count }));
+    frequencyItems.sort((a, b) => (Number(b.count) || 0) - (Number(a.count) || 0));
+    const frequencyHtml = frequencyItems.map(item =>
+      `<li>${escapeHtml(item.type || '')}: ${escapeHtml(String(item.count || 0))}${item.description ? ` - ${escapeHtml(item.description)}` : ''}</li>`
+    ).join('');
+    el.innerHTML = `
+      <div class="field-group">
+        <label class="field-label">요약</label>
+        <div style="white-space: pre-wrap; padding: 10px; border: 1px solid #ddd; border-radius: 10px; background:#fbfbfb;">${escapeHtml(state.analysis.summary)}</div>
+      </div>
+      ${frequencyHtml ? `<div class="field-group"><label class="field-label">상황 빈도</label><ul style="padding-left: 18px;">${frequencyHtml}</ul></div>` : ''}
+      ${state.analysis.details ? `<div class="field-group"><label class="field-label">분석 세부</label><div style="white-space: pre-wrap; padding: 10px; border: 1px solid #ddd; border-radius: 10px; background:#fbfbfb;">${escapeHtml(state.analysis.details)}</div></div>` : ''}
+      ${state.analysis.updatedAt ? `<div class="field-group"><small>분석 시각: ${escapeHtml(state.analysis.updatedAt)}</small></div>` : ''}
+    `;
+  }
+
+  function parseAnalysisResponse(text) {
+    let parsed = { summary: text.trim(), frequency: [], details: '' };
+    try {
+      const json = JSON.parse(text.trim());
+      parsed.summary = json.summary || parsed.summary;
+      parsed.details = json.details || (json.details === '' ? '' : JSON.stringify(json, null, 2));
+      if (Array.isArray(json.frequency)) {
+        parsed.frequency = json.frequency;
+      } else if (json.frequency && typeof json.frequency === 'object') {
+        parsed.frequency = Object.entries(json.frequency).map(([type, count]) => ({ type, count }));
+      }
+    } catch (e) {
+      parsed.details = text.trim();
+    }
+    return parsed;
+  }
+
+  async function runGeminiAnalysis() {
+    const analysisText = buildAnalysisText();
+    if (!analysisText) {
+      alert('패들렛 텍스트나 학생 입력 데이터를 제공해 주세요.');
+      return;
+    }
+    const notice = document.getElementById('analysis-notice');
+    notice.classList.remove('visible');
+    const resultEl = document.getElementById('analysis-result');
+    resultEl.innerHTML = '<div class="empty-state">분석 중입니다... 잠시 기다려 주세요.</div>';
+
+    try {
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: analysisText })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || '분석에 실패했습니다.');
+
+      const parsed = parseAnalysisResponse(data.analysis || '');
+      state.analysis = {
+        summary: parsed.summary,
+        frequency: parsed.frequency,
+        details: parsed.details,
+        updatedAt: new Date().toLocaleString('ko-KR', { hour12: false })
+      };
+      persistState();
+      renderAnalysisView();
+      notice.textContent = '✅ 분석 결과가 업데이트되었습니다.';
+      notice.classList.add('visible');
+    } catch (error) {
+      resultEl.innerHTML = `<div class="empty-state">분석 중 오류가 발생했습니다: ${escapeHtml(error.message)}</div>`;
+    }
+  }
+
+  function selectAdminSituation(id) {
+    currentSituationId = id;
+    if (id) {
+      const situation = getSituationById(id);
+      if (situation) {
+        document.getElementById('situation-title').value = situation.title;
+        document.getElementById('situation-input').value = situation.situation;
+        state.chars = Array.isArray(situation.chars) ? situation.chars.slice() : [];
+      }
+    } else {
+      document.getElementById('situation-title').value = '';
+      document.getElementById('situation-input').value = '';
+      state.chars = [];
+    }
+    renderCharTagsAdmin();
+    renderSituationOptions('student-situation-select', true);
+  }
+
+  function deleteSelectedSituation() {
+    if (!currentSituationId) {
+      alert('삭제할 상황을 선택해 주세요.');
+      return;
+    }
+    if (!confirm('선택한 상황과 해당 상황에 대한 학생 입력 데이터를 삭제하시겠습니까?')) return;
+
+    state.situations = state.situations.filter(s => s.id !== currentSituationId);
+    Object.values(state.students).forEach(student => {
+      if (student.responses) {
+        delete student.responses[currentSituationId];
+      }
+    });
+
+    currentSituationId = state.situations[0]?.id || '';
+    persistState();
+    renderAdminFields();
+    renderSituationOptions('student-situation-select', true);
+    generateWordCloud();
+    renderStudentResults();
+  }
+
+  loadState();
+
+  // ── Tab switching ───────────────────────────────────────
+  function switchTab(tab) {
+    if (tab === 'admin') {
+      document.getElementById('admin-modal').style.display = 'flex';
+    } else if (tab === 'student') {
+      document.getElementById('student-modal').style.display = 'flex';
+    }
+  }
+
+  // ── Sub-page navigation ─────────────────────────────────
+  function showSub(from, to) {
+    document.getElementById(from).classList.remove('active');
+    document.getElementById(to).classList.add('active');
+  }
+
+  function goToSituation() {
+    if (!currentSituationId && state.situations.length) {
+      currentSituationId = state.situations[0].id;
+    }
+    showSub('student-home', 'student-situation');
+    renderSituationView();
+  }
+
+  // ── Open external links ─────────────────────────────────
+  function openLink(type) {
+    const url = type === 'padlet' ? state.padletUrl : state.notebooklmUrl;
+    const name = type === 'padlet' ? '패들렛' : '노트북LM';
+    if (!url) {
+      alert(`관리자 페이지에서 ${name} 링크를 먼저 저장해 주세요.`);
+      return;
+    }
+    window.open(url, '_blank');
+  }
+
+  function changeStudentSituation(id) {
+    if (!id) return;
+    currentSituationId = id;
+    renderSituationView();
+  }
+
+  // ── Admin: characters ───────────────────────────────────
+  function addChar() {
+    const input = document.getElementById('char-name-input');
+    const name = input.value.trim();
+    if (!name || state.chars.includes(name)) { input.value = ''; return; }
+    state.chars.push(name);
+    input.value = '';
+    renderCharTagsAdmin();
+    persistState();
+  }
+
+  function removeChar(name) {
+    state.chars = state.chars.filter(c => c !== name);
+    renderCharTagsAdmin();
+    persistState();
+  }
+
+  function renderCharTagsAdmin() {
+    document.getElementById('char-tags-admin').innerHTML =
+      state.chars.map(c =>
+        `<span class="char-edit-tag">${escapeHtml(c)}
+          <button onclick="removeChar('${escapeJs(c)}')" title="${escapeHtml(c)} 삭제">✕</button>
+        </span>`
+      ).join('');
+    renderCharCriteriaInputs();
+  }
+
+  function renderCharCriteriaInputs() {
+    const container = document.getElementById('char-criteria-admin');
+    const situation = getSituationById(currentSituationId);
+    const criteriaByChar = situation?.criteriaByChar || {};
+    container.innerHTML = state.chars.map(c =>
+      `<div class="char-criteria-row">
+        <div class="char-edit-tag">${escapeHtml(c)}</div>
+        <textarea class="char-criteria-input" data-char="${escapeHtml(c)}" placeholder="${escapeHtml(c)} 공감 기준을 입력하세요.">${escapeHtml(criteriaByChar[c] || '')}</textarea>
+      </div>`
+    ).join('');
+  }
+
+  function getCharCriteriaInput() {
+    const result = {};
+    document.querySelectorAll('.char-criteria-input').forEach(textarea => {
+      const char = textarea.dataset.char;
+      if (char) result[char] = textarea.value.trim();
+    });
+    return result;
+  }
+
+  function escapeHtml(text) {
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function escapeJs(text) {
+    return String(text).replace(/['"\\]/g, '\\$&');
+  }
+
+  // ── Admin: save ─────────────────────────────────────────
+  function saveSituation() {
+    state.padletUrl = document.getElementById('padlet-url').value.trim();
+    state.notebooklmUrl = document.getElementById('notebooklm-url').value.trim();
+    const title = document.getElementById('situation-title').value.trim() || `상황${state.situations.length + 1}`;
+    const situationText = document.getElementById('situation-input').value.trim();
+    const charCriteria = getCharCriteriaInput();
+
+    if (currentSituationId) {
+      const situation = getSituationById(currentSituationId);
+      if (situation) {
+        situation.title = title;
+        situation.situation = situationText;
+        situation.chars = state.chars.slice();
+        situation.criteriaByChar = { ...charCriteria };
+      }
+    } else {
+      const id = `situation-${Date.now()}`;
+      state.situations.push({
+        id,
+        title,
+        situation: situationText,
+        chars: state.chars.slice(),
+        criteriaByChar: { ...charCriteria }
+      });
+      currentSituationId = id;
+    }
+
+    persistState();
+    renderAdminFields();
+    renderSituationOptions('student-situation-select', true);
+    generateWordCloud();
+    renderStudentResults();
+
+    const notice = document.getElementById('save-notice');
+    notice.classList.add('visible');
+    setTimeout(() => notice.classList.remove('visible'), 3000);
+  }
+
+  // ── Student: situation view ─────────────────────────────
+  function renderSituationView() {
+    const situation = getSituationById(currentSituationId);
+    document.getElementById('sit-text-view').textContent =
+      situation?.situation || '아직 선생님이 상황을 입력하지 않았어요.';
+
+    document.getElementById('sit-chars').innerHTML =
+      (situation?.chars || []).map(c => `<span class="char-tag">${c}</span>`).join('');
+
+    const sel = document.getElementById('char-select');
+    sel.innerHTML = '<option value="">인물을 선택하세요</option>' +
+      (situation?.chars || []).map(c => `<option value="${c}">${c}</option>`).join('');
+
+    const studentSituationSelect = document.getElementById('student-situation-select');
+    if (studentSituationSelect) {
+      renderSituationOptions('student-situation-select', true);
+      studentSituationSelect.value = currentSituationId;
+    }
+
+    renderEmotionList();
+  }
+
+  // ── Student: emotions ───────────────────────────────────
+  function submitEmotion() {
+    if (!currentStudent || !currentSituationId) return;
+    const who = document.getElementById('char-select').value;
+    const text = document.getElementById('emotion-input').value.trim();
+    if (!who || !text) { alert('인물과 감정을 모두 입력해 주세요.'); return; }
+
+    if (!state.students[currentStudent]) {
+      state.students[currentStudent] = { responses: {} };
+    }
+    if (!state.students[currentStudent].responses) {
+      state.students[currentStudent].responses = {};
+    }
+    if (!state.students[currentStudent].responses[currentSituationId]) {
+      state.students[currentStudent].responses[currentSituationId] = [];
+    }
+
+    const now = new Date();
+    const time = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+    state.students[currentStudent].responses[currentSituationId].push({ who, text, time });
+
+    persistState();
+
+    document.getElementById('emotion-input').value = '';
+    document.getElementById('char-select').value = '';
+    renderEmotionList();
+  }
+
+  function renderEmotionList() {
+    if (!currentStudent || !currentSituationId) return;
+    const el = document.getElementById('emotion-list');
+    const emotions = state.students[currentStudent]?.responses?.[currentSituationId] || [];
+    if (!emotions.length) { el.innerHTML = '<div class="empty-state">아직 입력된 감정이 없어요.</div>'; return; }
+    el.innerHTML = [...emotions].reverse().map(e =>
+      `<div class="emotion-item">
+        <div class="emotion-who">${e.who} · ${e.time}</div>
+        <div class="emotion-text">${e.text}</div>
+      </div>`
+    ).join('');
+  }
+
+  // ── Student modal ───────────────────────────────────────
+  function selectStudent() {
+    const id = document.getElementById('student-select').value;
+    if (!id) return;
+    currentStudent = id;
+    if (!state.students[id]) state.students[id] = { responses: {} };
+    document.getElementById('student-modal').style.display = 'none';
+    document.getElementById('student-select').value = '';
+    document.getElementById('student-id-display').textContent = `(${id}번)`;
+    ['student','admin'].forEach(t => {
+      document.getElementById(t + '-page').classList.toggle('active', t === 'student');
+    });
+    document.querySelectorAll('.tab').forEach((el, i) =>
+      el.classList.toggle('active', i === 0)
+    );
+    if (!currentSituationId && state.situations.length) {
+      currentSituationId = state.situations[0].id;
+    }
+    renderSituationView();
+  }
+
+  function closeStudentModal() {
+    document.getElementById('student-modal').style.display = 'none';
+    document.getElementById('student-select').value = '';
+  }
+
+  // ── Word cloud ──────────────────────────────────────────
+  function generateWordCloud() {
+    const allEmotions = Object.values(state.students).flatMap(student =>
+      Object.values(student.responses || {}).flatMap(entries => entries)
+    );
+    const allText = allEmotions.map(e => e.text).join(' ');
+    const words = allText.split(/\s+/).filter(w => w.length > 1 && !['하고', '것', '같아요', '있을', '났을', '해서'].includes(w));
+    const freq = {};
+    words.forEach(w => freq[w] = (freq[w] || 0) + 1);
+    const list = Object.entries(freq).map(([text, weight]) => [text, weight]);
+    if (list.length === 0) {
+      const ctx = document.getElementById('wordcloud-canvas').getContext('2d');
+      ctx.clearRect(0, 0, 400, 300);
+      ctx.font = '16px Noto Sans KR';
+      ctx.fillText('아직 감정이 입력되지 않았습니다.', 50, 150);
+      return;
+    }
+    WordCloud(document.getElementById('wordcloud-canvas'), {
+      list: list,
+      gridSize: 16,
+      weightFactor: size => Math.min(size * 10, 100),
+      fontFamily: 'Noto Sans KR',
+      color: 'random-dark',
+      backgroundColor: 'white',
+      rotateRatio: 0.5,
+      rotationSteps: 2,
+    });
+  }
+
+  // ── Empathy evaluation ──────────────────────────────────
+  function evaluateEmpathy(studentId, situationId) {
+    const situation = getSituationById(situationId);
+    const emotions = state.students[studentId]?.responses?.[situationId] || [];
+    if (!emotions.length || !situation?.criteriaByChar) return {};
+    const charScores = {};
+    situation.chars.forEach(char => {
+      const charEmotions = emotions.filter(e => e.who === char);
+      if (!charEmotions.length) {
+        charScores[char] = 0;
+        return;
+      }
+      const criteria = situation.criteriaByChar[char];
+      if (!criteria) {
+        charScores[char] = 0;
+        return;
+      }
+      const criteriaWords = criteria.split(/\s+/).filter(w => w.length > 1);
+      if (!criteriaWords.length) {
+        charScores[char] = 0;
+        return;
+      }
+      let totalScore = 0;
+      charEmotions.forEach(e => {
+        const textWords = e.text.split(/\s+/);
+        const matches = criteriaWords.filter(cw => textWords.some(tw => tw.includes(cw))).length;
+        totalScore += matches / criteriaWords.length;
+      });
+      charScores[char] = totalScore / charEmotions.length;
+    });
+    return charScores;
+  }
+
+  function getEmpathyLevel(score) {
+    if (score >= 0.8) return { level: '공감숲', icon: '🌲' };
+    if (score >= 0.6) return { level: '공감열매', icon: '🍎' };
+    if (score >= 0.4) return { level: '공감나무', icon: '🌳' };
+    return { level: '공감새싹', icon: '🌱' };
+  }
+
+  // ── Render student results ─────────────────────────────
+  function renderStudentResults() {
+    const el = document.getElementById('student-results');
+    if (!state.situations.length) {
+      el.innerHTML = '<div class="empty-state">저장된 상황이 없습니다.</div>';
+      return;
+    }
+    el.innerHTML = state.situations.map(situation => {
+      const items = Object.keys(state.students).map(id => {
+        const charScores = evaluateEmpathy(id, situation.id);
+        const charLevels = situation.chars.map(char => {
+          const score = charScores[char] || 0;
+          const { level, icon } = getEmpathyLevel(score);
+          return `${char}: ${icon} ${level} (${(score * 100).toFixed(0)}%)`;
+        }).join(', ');
+        return `<div class="student-result">
+          <span class="student-name">${id}번 학생</span>
+          <span class="empathy-level">${charLevels}</span>
+        </div>`;
+      }).join('');
+      return `<div class="card">
+        <div class="section-title">${situation.title}</div>
+        ${items || '<div class="empty-state">이 상황에 입력한 학생이 없습니다.</div>'}
+      </div>`;
+    }).join('');
+  }
+
+  // ── Admin modal ─────────────────────────────────────────
+  function checkPassword() {
+    const pwd = document.getElementById('admin-password').value;
+    if (pwd === 'teacher') {
+      document.getElementById('admin-modal').style.display = 'none';
+      document.getElementById('admin-password').value = '';
+      renderAdminFields();
+      ['student','admin'].forEach(t => {
+        document.getElementById(t + '-page').classList.toggle('active', t === 'admin');
+      });
+      document.querySelectorAll('.tab').forEach((el, i) =>
+        el.classList.toggle('active', i === 1)
+      );
+      generateWordCloud();
+      renderStudentResults();
+    } else {
+      alert('잘못된 암호입니다.');
+    }
+  }
+
+  function closeModal() {
+    document.getElementById('admin-modal').style.display = 'none';
+    document.getElementById('admin-password').value = '';
+  }
+</script>
+
+</body>
+</html>
