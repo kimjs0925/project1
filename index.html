@@ -333,10 +333,23 @@
       display: block;
       box-shadow: inset 0 2px 8px rgba(20,20,20,0.04);
       transition: all 0.3s ease;
+      animation: wordcloudFadeIn 0.8s ease-out;
     }
     #wordcloud-canvas:hover {
       transform: scale(1.02);
       box-shadow: 0 8px 25px rgba(122, 120, 255, 0.15);
+    }
+
+    /* 워드클라우드 페이드인 애니메이션 */
+    @keyframes wordcloudFadeIn {
+      from {
+        opacity: 0;
+        transform: scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
     }
 
     /* Card Variations */
@@ -766,6 +779,9 @@
 
     <div class="card card-warm">
       <div class="section-title">☁️ 감정 워드클라우드</div>
+      <div style="text-align: center; margin-bottom: 1rem;">
+        <small style="color: var(--color-muted); font-size: 12px;">실시간으로 업데이트됩니다 ✨</small>
+      </div>
       <canvas id="wordcloud-canvas" width="400" height="300" style="width: 100%; max-width: 400px;"></canvas>
     </div>
 
@@ -1263,6 +1279,17 @@ ${studentEntries}`;
     document.getElementById('emotion-input').value = '';
     document.getElementById('char-select').value = '';
     renderEmotionList();
+
+    // 실시간 워드클라우드 업데이트
+    setTimeout(() => {
+      generateWordCloud();
+      // 애니메이션 재실행
+      const canvas = document.getElementById('wordcloud-canvas');
+      canvas.style.animation = 'none';
+      setTimeout(() => {
+        canvas.style.animation = 'wordcloudFadeIn 0.8s ease-out';
+      }, 10);
+    }, 100);
   }
 
   function renderEmotionList() {
@@ -1310,10 +1337,23 @@ ${studentEntries}`;
       Object.values(student.responses || {}).flatMap(entries => entries)
     );
     const allText = allEmotions.map(e => e.text).join(' ');
-    const words = allText.split(/\s+/).filter(w => w.length > 1 && !['하고', '것', '같아요', '있을', '났을', '해서', '나는', '나는', '그리고', '하지만', '그래서'].includes(w));
+
+    // 더 정교한 텍스트 전처리 (멘티미터 스타일)
+    const words = allText
+      .replace(/[.,!?;:()""''\[\]]/g, ' ') // 구두점 제거
+      .split(/\s+/)
+      .filter(w => w.length >= 2 && w.length <= 10) // 2-10글자 단어만
+      .filter(w => !['하고', '것', '같아요', '있을', '났을', '해서', '나는', '그리고', '하지만', '그래서', '아니라', '때문에', '정말로', '너무', '매우', '조금', '많이', '아주', '그렇게', '이렇게', '저렇게', '어떻게', '왜', '어디', '언제', '누가', '무엇을', '어떤', '이런', '저런', '그런'].includes(w))
+      .map(w => w.toLowerCase()); // 소문자 통일
+
     const freq = {};
     words.forEach(w => freq[w] = (freq[w] || 0) + 1);
-    const list = Object.entries(freq).map(([text, weight]) => [text, weight]);
+
+    // 상위 50개 단어만 선택 (멘티미터처럼)
+    const list = Object.entries(freq)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 50)
+      .map(([text, weight]) => [text, weight]);
 
     // 캔버스 초기화
     const canvas = document.getElementById('wordcloud-canvas');
@@ -1321,38 +1361,63 @@ ${studentEntries}`;
 
     if (list.length === 0) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.font = '16px Noto Sans KR';
-      ctx.fillStyle = '#666';
+      ctx.font = '18px Noto Sans KR';
+      ctx.fillStyle = '#999';
       ctx.textAlign = 'center';
-      ctx.fillText('아직 감정이 입력되지 않았습니다.', canvas.width / 2, canvas.height / 2);
+      ctx.fillText('학생들이 감정을 입력하면', canvas.width / 2, canvas.height / 2 - 20);
+      ctx.fillText('워드클라우드가 나타납니다!', canvas.width / 2, canvas.height / 2 + 20);
       return;
     }
 
-    // 워드클라우드 생성
+    // 멘티미터 스타일 워드클라우드
     WordCloud(canvas, {
       list: list,
-      gridSize: 12,
+      gridSize: 8, // 더 촘촘하게
       weightFactor: function(size) {
-        return Math.min(size * 8 + 12, 80); // 빈도수에 따라 글씨 크기 조정
+        // 멘티미터처럼 빈도수에 따라 크기 조정
+        const baseSize = 12;
+        const maxSize = 60;
+        const scale = Math.log(size + 1) / Math.log(Math.max(...list.map(([_, w]) => w)) + 1);
+        return baseSize + (maxSize - baseSize) * scale;
       },
       fontFamily: 'Noto Sans KR, sans-serif',
-      color: function(word, weight) {
-        // 빈도수에 따라 색상 변경
-        if (weight >= 5) return '#ff6d38'; // 주황색 (높은 빈도)
-        if (weight >= 3) return '#c7ff69'; // 라임색 (중간 빈도)
-        return '#7a78ff'; // 보라색 (낮은 빈도)
+      color: function(word, weight, fontSize, distance, theta) {
+        // 빈도수와 위치에 따라 다양한 색상 (멘티미터 스타일)
+        const colors = [
+          '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+          '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'
+        ];
+        const intensity = Math.min(weight / 5, 1); // 빈도수에 따른 강도
+        const colorIndex = Math.floor((word.length + theta * 10) * colors.length / 20) % colors.length;
+        return colors[colorIndex];
       },
       backgroundColor: 'transparent',
-      rotateRatio: 0.3, // 회전 비율 줄임
+      rotateRatio: 0.2, // 회전 줄임
       rotationSteps: 2,
+      minRotation: -Math.PI/6,
+      maxRotation: Math.PI/6,
       drawOutOfBound: false,
       shrinkToFit: true,
-      minSize: 12,
+      minSize: 10,
       drawMask: false,
-      wait: 50,
-      abortThreshold: 300,
+      wait: 30, // 더 빠른 애니메이션
+      abortThreshold: 500,
+      hover: function(item, dimension, event) {
+        if (event) {
+          canvas.style.cursor = 'pointer';
+          // 호버 효과 (선택사항)
+          canvas.style.transform = 'scale(1.02)';
+        } else {
+          canvas.style.cursor = 'default';
+          canvas.style.transform = 'scale(1)';
+        }
+      },
+      click: function(item, dimension, event) {
+        // 클릭 시 단어 정보 표시 (멘티미터처럼)
+        alert(`"${item[0]}" 단어가 ${item[1]}번 입력되었습니다.`);
+      },
       abort: function() {
-        console.log('워드클라우드 생성 중단됨');
+        console.log('워드클라우드 생성 완료');
       }
     });
   }
