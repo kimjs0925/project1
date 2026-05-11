@@ -1310,26 +1310,50 @@ ${studentEntries}`;
       Object.values(student.responses || {}).flatMap(entries => entries)
     );
     const allText = allEmotions.map(e => e.text).join(' ');
-    const words = allText.split(/\s+/).filter(w => w.length > 1 && !['하고', '것', '같아요', '있을', '났을', '해서'].includes(w));
+    const words = allText.split(/\s+/).filter(w => w.length > 1 && !['하고', '것', '같아요', '있을', '났을', '해서', '나는', '나는', '그리고', '하지만', '그래서'].includes(w));
     const freq = {};
     words.forEach(w => freq[w] = (freq[w] || 0) + 1);
     const list = Object.entries(freq).map(([text, weight]) => [text, weight]);
+
+    // 캔버스 초기화
+    const canvas = document.getElementById('wordcloud-canvas');
+    const ctx = canvas.getContext('2d');
+
     if (list.length === 0) {
-      const ctx = document.getElementById('wordcloud-canvas').getContext('2d');
-      ctx.clearRect(0, 0, 400, 300);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.font = '16px Noto Sans KR';
-      ctx.fillText('아직 감정이 입력되지 않았습니다.', 50, 150);
+      ctx.fillStyle = '#666';
+      ctx.textAlign = 'center';
+      ctx.fillText('아직 감정이 입력되지 않았습니다.', canvas.width / 2, canvas.height / 2);
       return;
     }
-    WordCloud(document.getElementById('wordcloud-canvas'), {
+
+    // 워드클라우드 생성
+    WordCloud(canvas, {
       list: list,
-      gridSize: 16,
-      weightFactor: size => Math.min(size * 10, 100),
-      fontFamily: 'Noto Sans KR',
-      color: 'random-dark',
-      backgroundColor: 'white',
-      rotateRatio: 0.5,
+      gridSize: 12,
+      weightFactor: function(size) {
+        return Math.min(size * 8 + 12, 80); // 빈도수에 따라 글씨 크기 조정
+      },
+      fontFamily: 'Noto Sans KR, sans-serif',
+      color: function(word, weight) {
+        // 빈도수에 따라 색상 변경
+        if (weight >= 5) return '#ff6d38'; // 주황색 (높은 빈도)
+        if (weight >= 3) return '#c7ff69'; // 라임색 (중간 빈도)
+        return '#7a78ff'; // 보라색 (낮은 빈도)
+      },
+      backgroundColor: 'transparent',
+      rotateRatio: 0.3, // 회전 비율 줄임
       rotationSteps: 2,
+      drawOutOfBound: false,
+      shrinkToFit: true,
+      minSize: 12,
+      drawMask: false,
+      wait: 50,
+      abortThreshold: 300,
+      abort: function() {
+        console.log('워드클라우드 생성 중단됨');
+      }
     });
   }
 
