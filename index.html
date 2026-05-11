@@ -340,16 +340,30 @@
       box-shadow: 0 8px 25px rgba(122, 120, 255, 0.15);
     }
 
-    /* 워드클라우드 페이드인 애니메이션 */
-    @keyframes wordcloudFadeIn {
-      from {
-        opacity: 0;
-        transform: scale(0.95);
-      }
-      to {
-        opacity: 1;
-        transform: scale(1);
-      }
+    /* 워드클라우드 필터 */
+    .wordcloud-filters {
+      background: rgba(255, 255, 255, 0.5);
+      border-radius: var(--radius-button);
+      padding: 16px;
+    }
+    .wordcloud-filter-btn {
+      background: var(--color-surface);
+      border: var(--border-width) solid rgba(20,20,20,0.08);
+      color: var(--color-text);
+      transition: all 0.2s ease;
+    }
+    .wordcloud-filter-btn:hover {
+      background: var(--color-lime-squeeze);
+      color: var(--color-midnight-abyss);
+      transform: translateY(-1px);
+    }
+    .wordcloud-filter-btn.active {
+      background: var(--color-lime-squeeze);
+      color: var(--color-midnight-abyss);
+      border-color: var(--color-lime-squeeze);
+    }
+    .filter-dropdown {
+      margin-top: 12px;
     }
 
     /* Card Variations */
@@ -782,6 +796,26 @@
       <div style="text-align: center; margin-bottom: 1rem;">
         <small style="color: var(--color-muted); font-size: 12px;">실시간으로 업데이트됩니다 ✨</small>
       </div>
+
+      <!-- 워드클라우드 필터 -->
+      <div class="wordcloud-filters" style="margin-bottom: 1.5rem;">
+        <div style="display: flex; gap: 8px; justify-content: center; margin-bottom: 12px;">
+          <button class="btn btn-sm wordcloud-filter-btn active" onclick="setWordCloudFilter('all')">전체 보기</button>
+          <button class="btn btn-sm wordcloud-filter-btn" onclick="setWordCloudFilter('situation')">상황별</button>
+          <button class="btn btn-sm wordcloud-filter-btn" onclick="setWordCloudFilter('character')">등장인물별</button>
+        </div>
+
+        <div id="situation-filter" class="filter-dropdown" style="display: none;">
+          <label class="field-label" style="display: block; margin-bottom: 8px;">상황 선택:</label>
+          <select id="wordcloud-situation-select" onchange="updateWordCloud()" style="width: 100%;"></select>
+        </div>
+
+        <div id="character-filter" class="filter-dropdown" style="display: none;">
+          <label class="field-label" style="display: block; margin-bottom: 8px;">등장인물 선택:</label>
+          <select id="wordcloud-character-select" onchange="updateWordCloud()" style="width: 100%;"></select>
+        </div>
+      </div>
+
       <canvas id="wordcloud-canvas" width="400" height="300" style="width: 100%; max-width: 400px;"></canvas>
     </div>
 
@@ -804,6 +838,11 @@
   };
   let currentStudent = null;
   let currentSituationId = '';
+
+  // 워드클라우드 필터 상태
+  let wordCloudFilter = 'all'; // 'all', 'situation', 'character'
+  let selectedSituationId = '';
+  let selectedCharacter = '';
 
   function persistState() {
     try {
@@ -893,6 +932,10 @@
 
     renderCharTagsAdmin();
     renderCharCriteriaInputs();
+
+    // 워드클라우드 필터 초기화
+    updateSituationOptions();
+    updateCharacterOptions();
   }
 
   function getSituationById(id) {
@@ -1331,11 +1374,98 @@ ${studentEntries}`;
     document.getElementById('student-select').value = '';
   }
 
+  // ── Word cloud filters ────────────────────────────────
+  function setWordCloudFilter(filterType) {
+    wordCloudFilter = filterType;
+
+    // 버튼 활성화 상태 변경
+    document.querySelectorAll('.wordcloud-filter-btn').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    event.target.classList.add('active');
+
+    // 필터 드롭다운 표시/숨김
+    document.getElementById('situation-filter').style.display = filterType === 'situation' ? 'block' : 'none';
+    document.getElementById('character-filter').style.display = filterType === 'character' ? 'block' : 'none';
+
+    // 드롭다운 옵션 업데이트
+    if (filterType === 'situation') {
+      updateSituationOptions();
+    } else if (filterType === 'character') {
+      updateCharacterOptions();
+    }
+
+    updateWordCloud();
+  }
+
+  function updateSituationOptions() {
+    const select = document.getElementById('wordcloud-situation-select');
+    select.innerHTML = '<option value="">상황을 선택하세요</option>';
+
+    state.situations.forEach(situation => {
+      const option = document.createElement('option');
+      option.value = situation.id;
+      option.textContent = situation.title;
+      select.appendChild(option);
+    });
+  }
+
+  function updateCharacterOptions() {
+    const select = document.getElementById('wordcloud-character-select');
+    select.innerHTML = '<option value="">등장인물을 선택하세요</option>';
+
+    // 모든 상황의 등장인물 수집 (중복 제거)
+    const allCharacters = new Set();
+    state.situations.forEach(situation => {
+      situation.chars.forEach(char => allCharacters.add(char));
+    });
+
+    Array.from(allCharacters).sort().forEach(char => {
+      const option = document.createElement('option');
+      option.value = char;
+      option.textContent = char;
+      select.appendChild(option);
+    });
+  }
+
+  function updateWordCloud() {
+    if (wordCloudFilter === 'situation') {
+      selectedSituationId = document.getElementById('wordcloud-situation-select').value;
+    } else if (wordCloudFilter === 'character') {
+      selectedCharacter = document.getElementById('wordcloud-character-select').value;
+    }
+
+    generateWordCloud();
+  }
+
   // ── Word cloud ──────────────────────────────────────────
   function generateWordCloud() {
-    const allEmotions = Object.values(state.students).flatMap(student =>
-      Object.values(student.responses || {}).flatMap(entries => entries)
-    );
+    let allEmotions = [];
+
+    if (wordCloudFilter === 'all') {
+      // 전체 데이터
+      allEmotions = Object.values(state.students).flatMap(student =>
+        Object.values(student.responses || {}).flatMap(entries => entries)
+      );
+    } else if (wordCloudFilter === 'situation' && selectedSituationId) {
+      // 특정 상황의 데이터만
+      allEmotions = Object.values(state.students).flatMap(student =>
+        (student.responses?.[selectedSituationId] || [])
+      );
+    } else if (wordCloudFilter === 'character' && selectedCharacter) {
+      // 특정 등장인물의 감정 데이터만
+      allEmotions = Object.values(state.students).flatMap(student =>
+        Object.values(student.responses || {}).flatMap(entries =>
+          entries.filter(entry => entry.who === selectedCharacter)
+        )
+      );
+    } else {
+      // 필터가 설정되지 않은 경우 전체 데이터
+      allEmotions = Object.values(state.students).flatMap(student =>
+        Object.values(student.responses || {}).flatMap(entries => entries)
+      );
+    }
+
     const allText = allEmotions.map(e => e.text).join(' ');
 
     // 더 정교한 텍스트 전처리 (멘티미터 스타일)
@@ -1364,8 +1494,21 @@ ${studentEntries}`;
       ctx.font = '18px Noto Sans KR';
       ctx.fillStyle = '#999';
       ctx.textAlign = 'center';
-      ctx.fillText('학생들이 감정을 입력하면', canvas.width / 2, canvas.height / 2 - 20);
-      ctx.fillText('워드클라우드가 나타납니다!', canvas.width / 2, canvas.height / 2 + 20);
+
+      let message1, message2;
+      if (wordCloudFilter === 'situation' && !selectedSituationId) {
+        message1 = '상황을 선택하면';
+        message2 = '워드클라우드가 나타납니다!';
+      } else if (wordCloudFilter === 'character' && !selectedCharacter) {
+        message1 = '등장인물을 선택하면';
+        message2 = '워드클라우드가 나타납니다!';
+      } else {
+        message1 = '감정 데이터가 없어요';
+        message2 = '학생들이 입력하면 나타납니다!';
+      }
+
+      ctx.fillText(message1, canvas.width / 2, canvas.height / 2 - 20);
+      ctx.fillText(message2, canvas.width / 2, canvas.height / 2 + 20);
       return;
     }
 
