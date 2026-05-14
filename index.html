@@ -6,6 +6,7 @@
   <title>갈등 해결 활동 앱</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/wordcloud2.js@1.2.2/src/wordcloud2.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -107,7 +108,7 @@
     }
 
     /* Pages */
-    .page { display: none; }
+    .page { display: none; width: 100%; clear: both; }
     .page.active { display: block; }
     .sub-page { display: none; }
     .sub-page.active { display: block; }
@@ -575,6 +576,15 @@
       box-shadow: 0 4px 12px rgba(20,20,20,0.08);
       border-color: rgba(199, 255, 105, 0.2);
     }
+    #admin-emotion-delete-list .student-result {
+      align-items: flex-start;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    #admin-emotion-delete-list .empathy-level {
+      flex: 1 1 100%;
+      line-height: 1.5;
+    }
     .student-name {
       font-weight: 700; color: var(--color-text);
       display: flex; align-items: center;
@@ -703,6 +713,8 @@
       </div>
 
       <div class="card card-warm">
+        <div class="field-group">
+          <label class="field-label">등장인물 선택</label>
           <select id="char-select"><option value="">인물을 선택하세요</option></select>
         </div>
         <div class="field-group">
@@ -766,6 +778,16 @@
         <label class="field-label">각 등장인물 공감 기준</label>
         <div id="char-criteria-admin"></div>
       </div>
+      <div class="field-group">
+        <label class="field-label">학생 감정 입력 삭제</label>
+        <div class="inline-group" style="margin-bottom:10px;">
+          <select id="emotion-delete-situation" onchange="renderAdminEmotionFilters(); renderAdminEmotionEntries();"></select>
+          <select id="emotion-delete-student" onchange="renderAdminEmotionEntries()"></select>
+          <select id="emotion-delete-character" onchange="renderAdminEmotionEntries()"></select>
+        </div>
+        <div id="admin-emotion-delete-list"></div>
+        <button class="btn btn-sm" style="margin-top: 10px; width: 100%;" onclick="deleteSelectedSituationEmotions()">선택한 상황 입력 전체 삭제</button>
+      </div>
     </div>
 
     <button class="btn btn-primary btn-full" onclick="saveSituation()">💾 상황 저장하기</button>
@@ -780,13 +802,10 @@
     <div class="card card-accent">
       <div class="section-title">🧠 갈등 상황 요약 분석</div>
       <div class="field-group">
-        <label class="field-label">패들렛/학생 입력 텍스트</label>
-        <textarea id="analysis-text-input" placeholder="패들렛에서 가져온 갈등 상황 내용을 붙여넣거나, 학생 입력 내용을 보충하여 분석할 수 있습니다."></textarea>
+        <label class="field-label">Padlet학생글 엑셀 파일</label>
+        <input type="file" id="padlet-xlsx-input" accept=".xlsx">
       </div>
-      <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-bottom: 0.75rem;">
-        <button class="btn btn-sm" style="flex:1 1 auto; min-width: 180px;" onclick="fetchPadletContent()">패들렛 자동 불러오기</button>
-        <button class="btn btn-primary btn-full" style="flex:2 1 auto; min-width: 180px;" onclick="runGeminiAnalysis()">분석 실행</button>
-      </div>
+      <button class="btn btn-primary btn-full" onclick="runPadletFileAnalysis()">파일 분석</button>
       <div class="notice" id="analysis-notice">✅ 분석 결과가 업데이트되었습니다.</div>
       <div id="analysis-result" style="margin-top: 1rem;"></div>
     </div>
@@ -800,9 +819,9 @@
       <!-- 워드클라우드 필터 -->
       <div class="wordcloud-filters" style="margin-bottom: 1.5rem;">
         <div style="display: flex; gap: 8px; justify-content: center; margin-bottom: 12px;">
-          <button class="btn btn-sm wordcloud-filter-btn active" onclick="setWordCloudFilter('all')">전체 보기</button>
-          <button class="btn btn-sm wordcloud-filter-btn" onclick="setWordCloudFilter('situation')">상황별</button>
-          <button class="btn btn-sm wordcloud-filter-btn" onclick="setWordCloudFilter('character')">등장인물별</button>
+          <button class="btn btn-sm wordcloud-filter-btn active" onclick="setWordCloudFilter('all', event)">전체 보기</button>
+          <button class="btn btn-sm wordcloud-filter-btn" onclick="setWordCloudFilter('situation', event)">상황별</button>
+          <button class="btn btn-sm wordcloud-filter-btn" onclick="setWordCloudFilter('character', event)">등장인물별</button>
         </div>
 
         <div id="situation-filter" class="filter-dropdown" style="display: none;">
@@ -843,13 +862,37 @@
   let wordCloudFilter = 'all'; // 'all', 'situation', 'character'
   let selectedSituationId = '';
   let selectedCharacter = '';
+  let stateSyncTimer = null;
+  const teacherServerUrl = 'http://192.168.1.63:3000';
 
-  function persistState() {
+  function apiUrl(path) {
+    if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+      const currentOrigin = window.location.origin;
+      if (currentOrigin === teacherServerUrl || window.location.port === '3000') {
+        return path;
+      }
+    }
+    return `${teacherServerUrl}${path}`;
+  }
+
+  function adminApiUrl(path) {
+    if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+      return path;
+    }
+    return `http://localhost:3000${path}`;
+  }
+
+  function saveStateLocally() {
     try {
       localStorage.setItem('conflictAppState', JSON.stringify(state));
     } catch (e) {
       console.warn('상태 저장 실패', e);
     }
+  }
+
+  function persistState() {
+    saveStateLocally();
+    scheduleServerStateSync();
   }
 
   function migrateOldStudentData(parsed) {
@@ -862,6 +905,117 @@
     });
   }
 
+  function mergeStudentResponses(baseStudents = {}, incomingStudents = {}) {
+    const merged = JSON.parse(JSON.stringify(baseStudents || {}));
+    Object.entries(incomingStudents || {}).forEach(([studentId, student]) => {
+      if (!merged[studentId]) merged[studentId] = { responses: {} };
+      if (!merged[studentId].responses) merged[studentId].responses = {};
+
+      Object.entries(student?.responses || {}).forEach(([situationId, entries]) => {
+        if (!Array.isArray(entries)) return;
+        if (!Array.isArray(merged[studentId].responses[situationId])) {
+          merged[studentId].responses[situationId] = [];
+        }
+        const seen = new Set(
+          merged[studentId].responses[situationId].map(entry =>
+            `${entry?.who || ''}\n${entry?.text || ''}\n${entry?.time || ''}`
+          )
+        );
+        entries.forEach(entry => {
+          const who = typeof entry?.who === 'string' ? entry.who.trim() : '';
+          const text = typeof entry?.text === 'string' ? entry.text.trim() : '';
+          if (!who || !text) return;
+          const normalized = { who, text, time: typeof entry.time === 'string' ? entry.time : '' };
+          const key = `${normalized.who}\n${normalized.text}\n${normalized.time}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            merged[studentId].responses[situationId].push(normalized);
+          }
+        });
+      });
+    });
+    return merged;
+  }
+
+  function normalizeSituations(situations) {
+    return situations.map((s, index) => ({
+      id: s.id || `situation-${Date.now()}-${index}`,
+      title: s.title || `상황${index + 1}`,
+      situation: s.situation || '',
+      chars: Array.isArray(s.chars) ? s.chars : [],
+      criteriaByChar: s.criteriaByChar && typeof s.criteriaByChar === 'object' ? s.criteriaByChar : {}
+    }));
+  }
+
+  function applyRemoteState(remote) {
+    if (!remote || typeof remote !== 'object') return;
+    const localStudents = state.students || {};
+
+    if (Array.isArray(remote.situations) && remote.situations.length) {
+      state.situations = normalizeSituations(remote.situations);
+    }
+    state.padletUrl = remote.padletUrl || state.padletUrl || '';
+    state.notebooklmUrl = remote.notebooklmUrl || state.notebooklmUrl || '';
+    state.students = mergeStudentResponses(remote.students || {}, localStudents);
+    if (remote.analysis && typeof remote.analysis === 'object') {
+      state.analysis = {
+        summary: remote.analysis.summary || state.analysis.summary || '',
+        frequency: remote.analysis.frequency || state.analysis.frequency || {},
+        details: remote.analysis.details || state.analysis.details || '',
+        updatedAt: remote.analysis.updatedAt || state.analysis.updatedAt || ''
+      };
+    }
+    if (!currentSituationId || !state.situations.some(s => s.id === currentSituationId)) {
+      currentSituationId = state.situations[0]?.id || '';
+    }
+  }
+
+  function renderSyncedState() {
+    renderAdminFields();
+    renderSituationOptions('student-situation-select', true);
+    if (currentStudent) {
+      renderSituationView();
+    }
+    updateCharacterOptions();
+    generateWordCloud();
+    renderStudentResults();
+  }
+
+  function scheduleServerStateSync() {
+    clearTimeout(stateSyncTimer);
+    stateSyncTimer = setTimeout(syncStateToServer, 300);
+  }
+
+  async function syncStateToServer() {
+    clearTimeout(stateSyncTimer);
+    try {
+      const response = await fetch(apiUrl('/api/state'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state })
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      applyRemoteState(data.state);
+      saveStateLocally();
+    } catch (e) {
+      console.warn('서버 상태 저장 실패: 로컬 저장만 유지합니다.', e);
+    }
+  }
+
+  async function syncStateFromServer() {
+    try {
+      const response = await fetch(apiUrl('/api/state'));
+      if (!response.ok) return;
+      const data = await response.json();
+      applyRemoteState(data.state);
+      saveStateLocally();
+      renderSyncedState();
+    } catch (e) {
+      console.warn('서버 상태 불러오기 실패: 로컬 저장만 사용합니다.', e);
+    }
+  }
+
   function loadState() {
     try {
       const saved = localStorage.getItem('conflictAppState');
@@ -869,13 +1023,7 @@
       const parsed = JSON.parse(saved);
 
       if (Array.isArray(parsed.situations)) {
-        state.situations = parsed.situations.map((s, index) => ({
-          id: s.id || `situation-${Date.now()}-${index}`,
-          title: s.title || `상황${index + 1}`,
-          situation: s.situation || '',
-          chars: Array.isArray(s.chars) ? s.chars : [],
-          criteriaByChar: s.criteriaByChar && typeof s.criteriaByChar === 'object' ? s.criteriaByChar : {}
-        }));
+        state.situations = normalizeSituations(parsed.situations);
       } else if (parsed.situation || Array.isArray(parsed.chars)) {
         state.situations = [{
           id: 'situation-1',
@@ -932,6 +1080,8 @@
 
     renderCharTagsAdmin();
     renderCharCriteriaInputs();
+    renderAdminEmotionFilters();
+    renderAdminEmotionEntries();
 
     // 워드클라우드 필터 초기화
     updateSituationOptions();
@@ -999,7 +1149,7 @@ ${studentEntries}`;
     resultEl.innerHTML = '<div class="empty-state">패들렛 내용을 가져오는 중입니다... 잠시 기다려 주세요.</div>';
 
     try {
-      const response = await fetch('/api/padlet', {
+      const response = await fetch(apiUrl('/api/padlet'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: padletUrl })
@@ -1025,15 +1175,33 @@ ${studentEntries}`;
       ? state.analysis.frequency.slice()
       : Object.entries(state.analysis.frequency || {}).map(([type, count]) => ({ type, count }));
     frequencyItems.sort((a, b) => (Number(b.count) || 0) - (Number(a.count) || 0));
-    const frequencyHtml = frequencyItems.map(item =>
-      `<li>${escapeHtml(item.type || '')}: ${escapeHtml(String(item.count || 0))}${item.description ? ` - ${escapeHtml(item.description)}` : ''}</li>`
-    ).join('');
+    const maxCount = Math.max(1, ...frequencyItems.map(item => Number(item.count) || 0));
+    const frequencyHtml = frequencyItems.map((item, index) => {
+      const rank = item.rank || index + 1;
+      const count = Number(item.count) || 0;
+      const percent = Number.isFinite(Number(item.percent)) ? Number(item.percent) : 0;
+      const barWidth = Math.max(8, Math.round((count / maxCount) * 100));
+      const examples = Array.isArray(item.examples) && item.examples.length
+        ? `<div style="margin-top: 6px; color: var(--color-muted); font-size: 13px;">예시: ${item.examples.map(example => escapeHtml(example)).join('<br>')}</div>`
+        : '';
+      return `<li style="margin-bottom: 14px; list-style-position: outside;">
+        <div style="display:flex; justify-content:space-between; gap:12px; align-items:baseline;">
+          <strong>${rank}위. ${escapeHtml(item.type || '')}</strong>
+          <span style="white-space:nowrap; font-weight:700;">${count}건${percent ? ` (${percent}%)` : ''}</span>
+        </div>
+        <div style="height:8px; background:#eee7d8; border-radius:999px; overflow:hidden; margin-top:6px;">
+          <div style="width:${barWidth}%; height:100%; background:var(--color-lime-squeeze);"></div>
+        </div>
+        ${item.description ? `<div style="margin-top: 4px;">${escapeHtml(item.description)}</div>` : ''}
+        ${examples}
+      </li>`;
+    }).join('');
     el.innerHTML = `
       <div class="field-group">
         <label class="field-label">요약</label>
         <div style="white-space: pre-wrap; padding: 10px; border: 1px solid #ddd; border-radius: 10px; background:#fbfbfb;">${escapeHtml(state.analysis.summary)}</div>
       </div>
-      ${frequencyHtml ? `<div class="field-group"><label class="field-label">상황 빈도</label><ul style="padding-left: 18px;">${frequencyHtml}</ul></div>` : ''}
+      ${frequencyHtml ? `<div class="field-group"><label class="field-label">갈등 유형 순위와 빈도수</label><ol style="padding-left: 18px; margin: 0;">${frequencyHtml}</ol></div>` : ''}
       ${state.analysis.details ? `<div class="field-group"><label class="field-label">분석 세부</label><div style="white-space: pre-wrap; padding: 10px; border: 1px solid #ddd; border-radius: 10px; background:#fbfbfb;">${escapeHtml(state.analysis.details)}</div></div>` : ''}
       ${state.analysis.updatedAt ? `<div class="field-group"><small>분석 시각: ${escapeHtml(state.analysis.updatedAt)}</small></div>` : ''}
     `;
@@ -1056,39 +1224,242 @@ ${studentEntries}`;
     return parsed;
   }
 
-  async function runGeminiAnalysis() {
-    const analysisText = buildAnalysisText();
-    if (!analysisText) {
-      alert('패들렛 텍스트나 학생 입력 데이터를 제공해 주세요.');
+  function decodeXmlText(text) {
+    return String(text || '')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+      .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(parseInt(code, 16)))
+      .replace(/&amp;/g, '&');
+  }
+
+  async function inflateRawZipData(bytes) {
+    if (!('DecompressionStream' in window)) {
+      throw new Error('이 브라우저는 서버 없는 엑셀 압축 해제를 지원하지 않습니다. 최신 Chrome 또는 Edge로 열어 주세요.');
+    }
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+
+  async function readZipEntriesFromArrayBuffer(arrayBuffer) {
+    const bytes = new Uint8Array(arrayBuffer);
+    const view = new DataView(arrayBuffer);
+    const decoder = new TextDecoder('utf-8');
+    let eocdOffset = -1;
+    const minOffset = Math.max(0, bytes.length - 66000);
+
+    for (let i = bytes.length - 22; i >= minOffset; i -= 1) {
+      if (view.getUint32(i, true) === 0x06054b50) {
+        eocdOffset = i;
+        break;
+      }
+    }
+    if (eocdOffset < 0) throw new Error('엑셀 파일 구조를 읽지 못했습니다.');
+
+    const entryCount = view.getUint16(eocdOffset + 10, true);
+    let offset = view.getUint32(eocdOffset + 16, true);
+    const entries = new Map();
+
+    for (let i = 0; i < entryCount; i += 1) {
+      if (view.getUint32(offset, true) !== 0x02014b50) break;
+      const method = view.getUint16(offset + 10, true);
+      const compressedSize = view.getUint32(offset + 20, true);
+      const nameLength = view.getUint16(offset + 28, true);
+      const extraLength = view.getUint16(offset + 30, true);
+      const commentLength = view.getUint16(offset + 32, true);
+      const localHeaderOffset = view.getUint32(offset + 42, true);
+      const name = decoder.decode(bytes.slice(offset + 46, offset + 46 + nameLength));
+
+      const localNameLength = view.getUint16(localHeaderOffset + 26, true);
+      const localExtraLength = view.getUint16(localHeaderOffset + 28, true);
+      const dataStart = localHeaderOffset + 30 + localNameLength + localExtraLength;
+      const raw = bytes.slice(dataStart, dataStart + compressedSize);
+      const data = method === 0 ? raw : await inflateRawZipData(raw);
+      entries.set(name, decoder.decode(data));
+
+      offset += 46 + nameLength + extraLength + commentLength;
+    }
+
+    return entries;
+  }
+
+  function parseSharedStringsXml(xml) {
+    const result = [];
+    const items = xml.match(/<si\b[\s\S]*?<\/si>/g) || [];
+    items.forEach(item => {
+      const parts = [...item.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)]
+        .map(match => decodeXmlText(match[1]));
+      result.push(parts.join(''));
+    });
+    return result;
+  }
+
+  function parseWorksheetRowsXml(xml, sharedStrings) {
+    const rows = [];
+    const rowMatches = xml.match(/<row\b[\s\S]*?<\/row>/g) || [];
+
+    rowMatches.forEach(rowXml => {
+      const row = {};
+      const cells = rowXml.matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g);
+      for (const cell of cells) {
+        const attrs = cell[1];
+        const body = cell[2];
+        const ref = attrs.match(/\br="([A-Z]+)(\d+)"/);
+        if (!ref) continue;
+
+        const col = ref[1];
+        const valueMatch = body.match(/<v>([\s\S]*?)<\/v>/);
+        const inlineMatch = body.match(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/);
+        let value = valueMatch ? decodeXmlText(valueMatch[1]) : '';
+        if (/\bt="s"/.test(attrs)) {
+          value = sharedStrings[Number(value)] || '';
+        } else if (!value && inlineMatch) {
+          value = decodeXmlText(inlineMatch[1]);
+        }
+        row[col] = value;
+      }
+      if (Object.keys(row).length) rows.push(row);
+    });
+
+    return rows;
+  }
+
+  async function extractPadletPostsFromXlsxFile(file) {
+    if (window.XLSX) {
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      const sheetName = workbook.SheetNames.includes('게시물') ? '게시물' : workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      if (!sheet) throw new Error('엑셀 파일에서 게시물 시트를 찾지 못했습니다.');
+
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      const posts = rows.map(row => {
+        const bodyKey = Object.keys(row).find(key => String(key).trim() === '본문') || Object.keys(row)[1];
+        return String(row[bodyKey] || '').replace(/\s+/g, ' ').trim();
+      }).filter(text => text.length >= 5);
+
+      if (!posts.length) {
+        throw new Error('본문 컬럼에서 분석할 글을 찾지 못했습니다.');
+      }
+      return posts;
+    }
+
+    const entries = await readZipEntriesFromArrayBuffer(await file.arrayBuffer());
+    const sharedStrings = parseSharedStringsXml(entries.get('xl/sharedStrings.xml') || '');
+    const sheet = entries.get('xl/worksheets/sheet1.xml');
+    if (!sheet) throw new Error('게시물 시트를 찾지 못했습니다.');
+
+    const rows = parseWorksheetRowsXml(sheet, sharedStrings);
+    const header = rows[0] || {};
+    const bodyColumn = Object.entries(header).find(([, value]) => value === '본문')?.[0] || 'B';
+
+    return rows.slice(1)
+      .map(row => String(row[bodyColumn] || '').replace(/\s+/g, ' ').trim())
+      .filter(text => text.length >= 5);
+  }
+
+  const localConflictTypeRules = [
+    { type: '친구 관계의 무시·소외', description: '친구가 말을 들어주지 않거나 소외감과 거리감을 느끼는 상황', keywords: ['무시', '안 들어', '안들어', '말을 안', '말없', '친해지고', '단답', '대답', '소외', '따돌'] },
+    { type: '신체적 괴롭힘·폭력', description: '때림, 맞음, 아픔처럼 신체적 접촉이나 위협이 포함된 상황', keywords: ['때려', '때리', '맞', '아프', '쎄게', '세게', '폭력', '밀', '차', '괴롭'] },
+    { type: '물건·소유 갈등', description: '물건을 가져가거나 숨기거나 준비물 때문에 생기는 갈등', keywords: ['물건', '숨겨', '숨긴', '가져', '필통', '샤프', '준비물', '잃어', '빼앗'] },
+    { type: '말투·언어 갈등', description: '짜증, 말투, 비난, 공격적인 말 때문에 감정이 상한 상황', keywords: ['말투', '짜증', '화난 목소리', '뭐라', '욕', '신경쓰지마', '비난', '무시까', '왜이렇게'] },
+    { type: '약속·기다림 갈등', description: '약속을 어기거나 기다리게 해서 생기는 갈등', keywords: ['기다리', '약속', '연락', '먼저 집', '놀기로', '학원끝', '알겠다고'] },
+    { type: '놀이·게임 갈등', description: '게임, 놀이, 같이 노는 과정에서 생기는 갈등', keywords: ['게임', '로블록스', '디스코드', '놀', '시작해', '판', '전화'] },
+    { type: '학업·규칙 스트레스', description: '숙제, 시험, 수업 규칙, 지적 등 학교생활 부담과 관련된 갈등', keywords: ['학업', '숙제', '시험', '사인', '수업', '규칙', '지적', '선생', '반이', '책상'] },
+    { type: '운동·역할 참여 갈등', description: '운동이나 활동에서 역할과 참여 문제로 생기는 갈등', keywords: ['운동', '아무것도 안', '못하냐', '너가해라', '네가해라', '역할', '팀'] },
+    { type: '가족 갈등', description: '부모님이나 가족의 다툼이 학생에게 영향을 주는 상황', keywords: ['엄마', '아빠', '부모', '가족', '생일'] }
+  ];
+
+  function classifyLocalConflictPost(text) {
+    const normalized = text.toLowerCase();
+    const scored = localConflictTypeRules.map(rule => ({
+      ...rule,
+      score: rule.keywords.reduce((sum, keyword) =>
+        sum + (normalized.includes(keyword.toLowerCase()) ? 1 : 0), 0)
+    })).filter(rule => rule.score > 0);
+
+    return scored.sort((a, b) => b.score - a.score)[0] || {
+      type: '기타 갈등',
+      description: '정해진 키워드로 뚜렷하게 구분하기 어려운 갈등'
+    };
+  }
+
+  function analyzeLocalPadletPosts(posts) {
+    const groups = new Map();
+
+    posts.forEach((text, index) => {
+      const result = classifyLocalConflictPost(text);
+      if (!groups.has(result.type)) {
+        groups.set(result.type, { type: result.type, count: 0, description: result.description, examples: [] });
+      }
+      const group = groups.get(result.type);
+      group.count += 1;
+      if (group.examples.length < 3) {
+        group.examples.push(`${index + 1}번: ${text.slice(0, 80)}${text.length > 80 ? '...' : ''}`);
+      }
+    });
+
+    const frequency = Array.from(groups.values())
+      .sort((a, b) => b.count - a.count)
+      .map((item, index) => ({
+        ...item,
+        rank: index + 1,
+        percent: posts.length ? Math.round((item.count / posts.length) * 100) : 0
+      }));
+    const top = frequency[0];
+
+    return {
+      summary: top
+        ? `선택한 엑셀 파일의 게시물 ${posts.length}개를 서버 없이 분석했습니다. 가장 많은 갈등 유형은 '${top.type}'이며 ${top.count}건(${top.percent}%)입니다.`
+        : '분석할 게시물이 없습니다.',
+      frequency,
+      details: frequency.map(item =>
+        `${item.rank}위. ${item.type}: ${item.count}건 (${item.percent}%)\n- ${item.description}\n- 예시: ${item.examples.join('\n  ')}`
+      ).join('\n\n'),
+      updatedAt: new Date().toLocaleString('ko-KR', { hour12: false }),
+      source: 'local-xlsx'
+    };
+  }
+
+  async function runOpenAIAnalysis() {
+    await runPadletFileAnalysis();
+  }
+
+  async function runPadletFileAnalysis() {
+    const input = document.getElementById('padlet-xlsx-input');
+    if (!input?.files?.length) {
+      alert('먼저 Padlet학생글 엑셀 파일을 선택해 주세요.');
       return;
     }
+    await analyzeSelectedPadletFile(input.files[0]);
+  }
+
+  async function runPadletFileAnalysisFromInput() {
+    const input = document.getElementById('padlet-xlsx-input');
+    if (input?.files?.length) {
+      await analyzeSelectedPadletFile(input.files[0]);
+    }
+  }
+
+  async function analyzeSelectedPadletFile(file) {
     const notice = document.getElementById('analysis-notice');
     notice.classList.remove('visible');
     const resultEl = document.getElementById('analysis-result');
-    resultEl.innerHTML = '<div class="empty-state">분석 중입니다... 잠시 기다려 주세요.</div>';
+    resultEl.innerHTML = '<div class="empty-state">Padlet학생글 파일을 분석하는 중입니다...</div>';
 
     try {
-      const response = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: analysisText })
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || '분석에 실패했습니다.');
-
-      const parsed = parseAnalysisResponse(data.analysis || '');
-      state.analysis = {
-        summary: parsed.summary,
-        frequency: parsed.frequency,
-        details: parsed.details,
-        updatedAt: new Date().toLocaleString('ko-KR', { hour12: false })
-      };
+      const posts = await extractPadletPostsFromXlsxFile(file);
+      state.analysis = analyzeLocalPadletPosts(posts);
       persistState();
       renderAnalysisView();
-      notice.textContent = '✅ 분석 결과가 업데이트되었습니다.';
+      notice.textContent = `✅ ${file.name}의 ${posts.length}개 글을 서버 없이 유형별로 분석했습니다.`;
       notice.classList.add('visible');
     } catch (error) {
-      resultEl.innerHTML = `<div class="empty-state">분석 중 오류가 발생했습니다: ${escapeHtml(error.message)}</div>`;
+      const libraryHint = window.XLSX
+        ? ''
+        : '<br>엑셀 분석 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 새로고침해 주세요.';
+      resultEl.innerHTML = `<div class="empty-state">Padlet학생글 파일 분석 중 오류가 발생했습니다: ${escapeHtml(error.message)}${libraryHint}</div>`;
     }
   }
 
@@ -1108,6 +1479,126 @@ ${studentEntries}`;
     }
     renderCharTagsAdmin();
     renderSituationOptions('student-situation-select', true);
+    renderAdminEmotionFilters();
+    renderAdminEmotionEntries();
+  }
+
+  function getSituationEmotionEntries(situationId) {
+    const entries = [];
+    Object.entries(state.students || {}).forEach(([studentId, student]) => {
+      const responses = student?.responses?.[situationId];
+      if (!Array.isArray(responses)) return;
+      responses.forEach((entry, index) => {
+        entries.push({ studentId, index, entry });
+      });
+    });
+    return entries;
+  }
+
+  function getEmotionDeleteSituationId() {
+    return document.getElementById('emotion-delete-situation')?.value || currentSituationId || '';
+  }
+
+  function renderAdminEmotionFilters() {
+    const situationSelect = document.getElementById('emotion-delete-situation');
+    const studentSelect = document.getElementById('emotion-delete-student');
+    const charSelect = document.getElementById('emotion-delete-character');
+    if (!situationSelect || !studentSelect || !charSelect) return;
+
+    const previousSituation = situationSelect.value || currentSituationId;
+    const previousStudent = studentSelect.value;
+    const previousChar = charSelect.value;
+    situationSelect.innerHTML = '<option value="">상황을 선택하세요</option>' +
+      state.situations.map(situation =>
+        `<option value="${escapeHtml(situation.id)}">${escapeHtml(situation.title)}</option>`
+      ).join('');
+
+    if (state.situations.some(situation => situation.id === previousSituation)) {
+      situationSelect.value = previousSituation;
+    } else {
+      situationSelect.value = currentSituationId || state.situations[0]?.id || '';
+    }
+
+    const selectedSituationId = getEmotionDeleteSituationId();
+    const entries = getSituationEmotionEntries(selectedSituationId);
+    const students = [...new Set(entries.map(item => item.studentId))].sort((a, b) => Number(a) - Number(b));
+    const chars = [...new Set(entries.map(item => item.entry?.who).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
+
+    studentSelect.innerHTML = '<option value="">전체 학생</option>' +
+      students.map(id => `<option value="${escapeHtml(id)}">${escapeHtml(id)}번 학생</option>`).join('');
+    charSelect.innerHTML = '<option value="">전체 인물</option>' +
+      chars.map(char => `<option value="${escapeHtml(char)}">${escapeHtml(char)}</option>`).join('');
+
+    if (students.includes(previousStudent)) studentSelect.value = previousStudent;
+    if (chars.includes(previousChar)) charSelect.value = previousChar;
+  }
+
+  function renderAdminEmotionEntries() {
+    const container = document.getElementById('admin-emotion-delete-list');
+    if (!container) return;
+    const selectedSituationId = getEmotionDeleteSituationId();
+    if (!selectedSituationId) {
+      container.innerHTML = '<div class="empty-state">상황을 먼저 선택해 주세요.</div>';
+      return;
+    }
+
+    const selectedStudent = document.getElementById('emotion-delete-student')?.value || '';
+    const selectedChar = document.getElementById('emotion-delete-character')?.value || '';
+    const entries = getSituationEmotionEntries(selectedSituationId)
+      .filter(item => !selectedStudent || item.studentId === selectedStudent)
+      .filter(item => !selectedChar || item.entry?.who === selectedChar);
+
+    if (!entries.length) {
+      container.innerHTML = '<div class="empty-state">삭제할 학생 감정 입력이 없습니다.</div>';
+      return;
+    }
+
+    container.innerHTML = entries.map(item => `
+      <div class="student-result">
+        <span class="student-name">${escapeHtml(item.studentId)}번 · ${escapeHtml(item.entry?.who || '')} · ${escapeHtml(item.entry?.time || '')}</span>
+        <span class="empathy-level">${escapeHtml(item.entry?.text || '')}</span>
+        <button class="btn btn-sm" onclick="deleteStudentEmotionEntry('${escapeJs(selectedSituationId)}', '${escapeJs(item.studentId)}', ${item.index})">삭제</button>
+      </div>
+    `).join('');
+  }
+
+  function refreshAfterEmotionDelete() {
+    persistState();
+    syncStateToServer();
+    renderAdminEmotionFilters();
+    renderAdminEmotionEntries();
+    generateWordCloud();
+    renderStudentResults();
+  }
+
+  function deleteStudentEmotionEntry(situationId, studentId, entryIndex) {
+    const situationTitle = getSituationById(situationId)?.title || '선택한 상황';
+    const entries = state.students?.[studentId]?.responses?.[situationId];
+    if (!Array.isArray(entries) || !entries[entryIndex]) return;
+    if (!confirm(`${situationTitle}에서 ${studentId}번 학생의 선택한 감정 입력을 삭제할까요?`)) return;
+    entries.splice(entryIndex, 1);
+    refreshAfterEmotionDelete();
+  }
+
+  function deleteSelectedSituationEmotions() {
+    const situationId = getEmotionDeleteSituationId();
+    const situationTitle = getSituationById(situationId)?.title || '선택한 상황';
+    if (!situationId) {
+      alert('먼저 상황을 선택해 주세요.');
+      return;
+    }
+    const count = getSituationEmotionEntries(situationId).length;
+    if (!count) {
+      alert('삭제할 학생 감정 입력이 없습니다.');
+      return;
+    }
+    if (!confirm(`${situationTitle}에 입력된 학생 감정 ${count}개를 모두 삭제할까요?`)) return;
+    Object.values(state.students || {}).forEach(student => {
+      if (student.responses) {
+        student.responses[situationId] = [];
+      }
+    });
+    refreshAfterEmotionDelete();
   }
 
   function deleteSelectedSituation() {
@@ -1133,6 +1624,7 @@ ${studentEntries}`;
   }
 
   loadState();
+  syncStateFromServer();
 
   // ── Tab switching ───────────────────────────────────────
   function switchTab(tab) {
@@ -1264,6 +1756,7 @@ ${studentEntries}`;
     }
 
     persistState();
+    syncStateToServer();
     renderAdminFields();
     renderSituationOptions('student-situation-select', true);
     generateWordCloud();
@@ -1318,6 +1811,7 @@ ${studentEntries}`;
     state.students[currentStudent].responses[currentSituationId].push({ who, text, time });
 
     persistState();
+    syncStateToServer();
 
     document.getElementById('emotion-input').value = '';
     document.getElementById('char-select').value = '';
@@ -1349,7 +1843,7 @@ ${studentEntries}`;
   }
 
   // ── Student modal ───────────────────────────────────────
-  function selectStudent() {
+  async function selectStudent() {
     const id = document.getElementById('student-select').value;
     if (!id) return;
     currentStudent = id;
@@ -1363,6 +1857,8 @@ ${studentEntries}`;
     document.querySelectorAll('.tab').forEach((el, i) =>
       el.classList.toggle('active', i === 0)
     );
+    await syncStateFromServer();
+    if (!state.students[id]) state.students[id] = { responses: {} };
     if (!currentSituationId && state.situations.length) {
       currentSituationId = state.situations[0].id;
     }
@@ -1375,14 +1871,16 @@ ${studentEntries}`;
   }
 
   // ── Word cloud filters ────────────────────────────────
-  function setWordCloudFilter(filterType) {
+  function setWordCloudFilter(filterType, evt) {
     wordCloudFilter = filterType;
 
     // 버튼 활성화 상태 변경
     document.querySelectorAll('.wordcloud-filter-btn').forEach(btn => {
       btn.classList.remove('active');
     });
-    event.target.classList.add('active');
+    if (evt?.target) {
+      evt.target.classList.add('active');
+    }
 
     // 필터 드롭다운 표시/숨김
     document.getElementById('situation-filter').style.display = filterType === 'situation' ? 'block' : 'none';
@@ -1412,20 +1910,25 @@ ${studentEntries}`;
 
   function updateCharacterOptions() {
     const select = document.getElementById('wordcloud-character-select');
+    const previousValue = select.value || selectedCharacter;
     select.innerHTML = '<option value="">등장인물을 선택하세요</option>';
 
-    // 모든 상황의 등장인물 수집 (중복 제거)
-    const allCharacters = new Set();
-    state.situations.forEach(situation => {
-      situation.chars.forEach(char => allCharacters.add(char));
-    });
-
-    Array.from(allCharacters).sort().forEach(char => {
+    const allCharacters = getWordCloudCharacters();
+    allCharacters.forEach(char => {
       const option = document.createElement('option');
       option.value = char;
       option.textContent = char;
       select.appendChild(option);
     });
+
+    const previousNormalized = normalizeCharacterName(previousValue);
+    const matchedPrevious = allCharacters.find(char => normalizeCharacterName(char) === previousNormalized);
+    if (matchedPrevious) {
+      select.value = matchedPrevious;
+    } else if (allCharacters.length) {
+      select.value = allCharacters[0];
+    }
+    selectedCharacter = select.value;
   }
 
   function updateWordCloud() {
@@ -1438,33 +1941,95 @@ ${studentEntries}`;
     generateWordCloud();
   }
 
-  // ── Word cloud ──────────────────────────────────────────
-  function generateWordCloud() {
-    let allEmotions = [];
+  function normalizeCharacterName(name) {
+    return String(name || '').trim();
+  }
 
-    if (wordCloudFilter === 'all') {
-      // 전체 데이터
-      allEmotions = Object.values(state.students).flatMap(student =>
-        Object.values(student.responses || {}).flatMap(entries => entries)
-      );
-    } else if (wordCloudFilter === 'situation' && selectedSituationId) {
-      // 특정 상황의 데이터만
-      allEmotions = Object.values(state.students).flatMap(student =>
-        (student.responses?.[selectedSituationId] || [])
-      );
-    } else if (wordCloudFilter === 'character' && selectedCharacter) {
-      // 특정 등장인물의 감정 데이터만
-      allEmotions = Object.values(state.students).flatMap(student =>
-        Object.values(student.responses || {}).flatMap(entries =>
-          entries.filter(entry => entry.who === selectedCharacter)
-        )
+  function getResponseEntries(student, situationId) {
+    const responses = student?.responses || {};
+    if (situationId) {
+      const entries = responses[situationId];
+      return Array.isArray(entries) ? entries : [];
+    }
+    return Object.values(responses).flatMap(entries =>
+      Array.isArray(entries) ? entries : []
+    );
+  }
+
+  function getWordCloudCharacters() {
+    const byName = new Map();
+    const addName = (name) => {
+      const normalized = normalizeCharacterName(name);
+      if (normalized && !byName.has(normalized)) {
+        byName.set(normalized, normalized);
+      }
+    };
+
+    state.situations.forEach(situation => {
+      (situation.chars || []).forEach(addName);
+    });
+    Object.values(state.students || {}).forEach(student => {
+      getResponseEntries(student).forEach(entry => addName(entry?.who));
+    });
+
+    return Array.from(byName.values()).sort((a, b) => a.localeCompare(b, 'ko'));
+  }
+
+  function collectWordCloudEmotions() {
+    let entries = [];
+
+    if (wordCloudFilter === 'situation' && selectedSituationId) {
+      entries = Object.values(state.students || {}).flatMap(student =>
+        getResponseEntries(student, selectedSituationId)
       );
     } else {
-      // 필터가 설정되지 않은 경우 전체 데이터
-      allEmotions = Object.values(state.students).flatMap(student =>
-        Object.values(student.responses || {}).flatMap(entries => entries)
+      entries = Object.values(state.students || {}).flatMap(student =>
+        getResponseEntries(student)
       );
     }
+
+    if (wordCloudFilter === 'character' && selectedCharacter) {
+      const selectedName = normalizeCharacterName(selectedCharacter);
+      entries = entries.filter(entry => normalizeCharacterName(entry?.who) === selectedName);
+    }
+
+    return entries.filter(entry => typeof entry?.text === 'string' && entry.text.trim());
+  }
+
+  function drawFallbackWordCloud(canvas, list) {
+    const ctx = canvas.getContext('2d');
+    const colors = [
+      '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#F7DC6F',
+      '#BB8FCE', '#85C1E9', '#F1948A', '#52BE80', '#F5B041'
+    ];
+    const positions = [
+      [0.5, 0.5], [0.28, 0.42], [0.72, 0.44], [0.42, 0.65], [0.63, 0.28],
+      [0.2, 0.62], [0.8, 0.62], [0.38, 0.27], [0.58, 0.74], [0.5, 0.18],
+      [0.16, 0.28], [0.84, 0.3], [0.24, 0.78], [0.76, 0.78], [0.5, 0.86]
+    ];
+    const weights = list.map(([, weight]) => weight);
+    const maxWeight = Math.max(...weights);
+    const minWeight = Math.min(...weights);
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    list.slice(0, positions.length).forEach(([text, weight], index) => {
+      const scale = maxWeight === minWeight
+        ? Math.max(0.45, 1 - index * 0.04)
+        : Math.log(weight + 1) / Math.log(maxWeight + 1);
+      const fontSize = Math.round(14 + 30 * scale);
+      const [xRatio, yRatio] = positions[index];
+      ctx.font = `700 ${fontSize}px Noto Sans KR, sans-serif`;
+      ctx.fillStyle = colors[index % colors.length];
+      ctx.fillText(text, canvas.width * xRatio, canvas.height * yRatio);
+    });
+  }
+
+  // ── Word cloud ──────────────────────────────────────────
+  function generateWordCloud() {
+    const allEmotions = collectWordCloudEmotions();
 
     const allText = allEmotions.map(e => e.text).join(' ');
 
@@ -1512,57 +2077,67 @@ ${studentEntries}`;
       return;
     }
 
+    if (typeof WordCloud !== 'function') {
+      drawFallbackWordCloud(canvas, list);
+      return;
+    }
+
     // 멘티미터 스타일 워드클라우드
-    WordCloud(canvas, {
-      list: list,
-      gridSize: 8, // 더 촘촘하게
-      weightFactor: function(size) {
-        // 멘티미터처럼 빈도수에 따라 크기 조정
-        const baseSize = 12;
-        const maxSize = 60;
-        const scale = Math.log(size + 1) / Math.log(Math.max(...list.map(([_, w]) => w)) + 1);
-        return baseSize + (maxSize - baseSize) * scale;
-      },
-      fontFamily: 'Noto Sans KR, sans-serif',
-      color: function(word, weight, fontSize, distance, theta) {
-        // 빈도수와 위치에 따라 다양한 색상 (멘티미터 스타일)
-        const colors = [
-          '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
-          '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'
-        ];
-        const intensity = Math.min(weight / 5, 1); // 빈도수에 따른 강도
-        const colorIndex = Math.floor((word.length + theta * 10) * colors.length / 20) % colors.length;
-        return colors[colorIndex];
-      },
-      backgroundColor: 'transparent',
-      rotateRatio: 0.2, // 회전 줄임
-      rotationSteps: 2,
-      minRotation: -Math.PI/6,
-      maxRotation: Math.PI/6,
-      drawOutOfBound: false,
-      shrinkToFit: true,
-      minSize: 10,
-      drawMask: false,
-      wait: 30, // 더 빠른 애니메이션
-      abortThreshold: 500,
-      hover: function(item, dimension, event) {
-        if (event) {
-          canvas.style.cursor = 'pointer';
-          // 호버 효과 (선택사항)
-          canvas.style.transform = 'scale(1.02)';
-        } else {
-          canvas.style.cursor = 'default';
-          canvas.style.transform = 'scale(1)';
+    try {
+      WordCloud(canvas, {
+        list: list,
+        gridSize: 8, // 더 촘촘하게
+        weightFactor: function(size) {
+          // 멘티미터처럼 빈도수에 따라 크기 조정
+          const baseSize = 12;
+          const maxSize = 60;
+          const scale = Math.log(size + 1) / Math.log(Math.max(...list.map(([_, w]) => w)) + 1);
+          return baseSize + (maxSize - baseSize) * scale;
+        },
+        fontFamily: 'Noto Sans KR, sans-serif',
+        color: function(word, weight, fontSize, distance, theta) {
+          // 빈도수와 위치에 따라 다양한 색상 (멘티미터 스타일)
+          const colors = [
+            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+            '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'
+          ];
+          const intensity = Math.min(weight / 5, 1); // 빈도수에 따른 강도
+          const colorIndex = Math.floor((word.length + theta * 10) * colors.length / 20) % colors.length;
+          return colors[colorIndex];
+        },
+        backgroundColor: 'transparent',
+        rotateRatio: 0.2, // 회전 줄임
+        rotationSteps: 2,
+        minRotation: -Math.PI/6,
+        maxRotation: Math.PI/6,
+        drawOutOfBound: false,
+        shrinkToFit: true,
+        minSize: 10,
+        drawMask: false,
+        wait: 30, // 더 빠른 애니메이션
+        abortThreshold: 500,
+        hover: function(item, dimension, event) {
+          if (event) {
+            canvas.style.cursor = 'pointer';
+            // 호버 효과 (선택사항)
+            canvas.style.transform = 'scale(1.02)';
+          } else {
+            canvas.style.cursor = 'default';
+            canvas.style.transform = 'scale(1)';
+          }
+        },
+        click: function(item, dimension, event) {
+          // 클릭 시 단어 정보 표시 (멘티미터처럼)
+          alert(`"${item[0]}" 단어가 ${item[1]}번 입력되었습니다.`);
+        },
+        abort: function() {
+          console.log('워드클라우드 생성 완료');
         }
-      },
-      click: function(item, dimension, event) {
-        // 클릭 시 단어 정보 표시 (멘티미터처럼)
-        alert(`"${item[0]}" 단어가 ${item[1]}번 입력되었습니다.`);
-      },
-      abort: function() {
-        console.log('워드클라우드 생성 완료');
-      }
-    });
+      });
+    } catch (error) {
+      console.warn('워드클라우드 라이브러리 실행 실패, 기본 렌더링으로 대체합니다.', error);
+      drawFallbackWordCloud(canvas, list);
+    }
   }
 
   // ── Empathy evaluation ──────────────────────────────────
@@ -1633,9 +2208,9 @@ ${studentEntries}`;
   }
 
   // ── Admin modal ─────────────────────────────────────────
-  function checkPassword() {
+  async function checkPassword() {
     const pwd = document.getElementById('admin-password').value;
-    if (pwd === 'teacher') {
+    if (pwd === '1') {
       document.getElementById('admin-modal').style.display = 'none';
       document.getElementById('admin-password').value = '';
       renderAdminFields();
@@ -1645,6 +2220,7 @@ ${studentEntries}`;
       document.querySelectorAll('.tab').forEach((el, i) =>
         el.classList.toggle('active', i === 1)
       );
+      await syncStateFromServer();
       generateWordCloud();
       renderStudentResults();
     } else {

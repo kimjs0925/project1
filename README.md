@@ -11,19 +11,20 @@
 
 1. 터미널에서 이 폴더로 이동합니다.
 2. `npm install`을 실행하여 서버 의존성을 설치합니다.
-3. `제미나이.env.txt` 파일에 Gemini API 키를 넣거나, `.env` 파일에 다음 형식으로 추가합니다:
+3. OpenAI API 분석을 쓰려면 `.env` 또는 `openaiapi.env` 파일에 다음 형식으로 추가합니다:
    ```
-   GEMINI_API_KEY=여기에_제미나이_API_KEY
-   GEMINI_MODEL=gemini-1.5
+   OPENAI_API_KEY=여기에_OPENAI_API_KEY
+   OPENAI_MODEL=gpt-5-mini
    PORT=3000
    ```
 4. `npm start`로 로컬 서버를 실행합니다.
 5. 브라우저에서 `http://localhost:3000`을 열어 앱을 사용합니다.
 
-## Gemini 분석 기능
+## OpenAI 분석 기능
 
-- 관리자 페이지에서 패들렛 또는 학생 입력 텍스트를 붙여넣고 `분석 실행`을 누르면 Gemini API를 통해 요약 및 갈등 유형별 빈도 분석을 실행합니다.
-- 원본 텍스트는 서버에 저장되지 않으며, API 키는 `.env` 또는 `제미나이.env.txt` 파일에서만 읽습니다.
+- 관리자 페이지에서 `분석 실행`을 누르면 `Padlet학생글.xlsx` 파일을 읽고 OpenAI API로 갈등 유형별 순위와 빈도수를 분석합니다.
+- `OPENAI_API_KEY`가 없거나 OpenAI 분석에 실패하면 수업 중 결과 확인이 가능하도록 키워드 기반 분석으로 대체됩니다.
+- API 키는 `.env` 또는 `openaiapi.env` 파일에서만 읽으며 브라우저로 노출하지 않습니다.
 
 ## 기술 스택
 
