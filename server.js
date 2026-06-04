@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
 import { request } from 'undici';
+import os from 'os';
 
 dotenv.config();
 dotenv.config({ path: path.resolve(process.cwd(), 'openaiapi.env') });
@@ -30,7 +31,7 @@ const allowedCorsOrigins = new Set([
   'null',
   'http://localhost:3000',
   'http://127.0.0.1:3000',
-  'http://192.168.1.63:3000'
+  'http://192.168.1.19:3000'
 ]);
 
 app.use((req, res, next) => {
@@ -39,6 +40,7 @@ app.use((req, res, next) => {
     req.path === '/.env' ||
     req.path === '/제미나이.env.txt' ||
     req.path.startsWith('/.data') ||
+    requestedPath.endsWith('.env') ||
     requestedPath === 'openaiapi.env' ||
     requestedPath.startsWith('openaiapi')
   ) {
@@ -48,14 +50,30 @@ app.use((req, res, next) => {
 });
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (allowedCorsOrigins.has(origin)) {
+
+  let allowed = false;
+  if (origin && allowedCorsOrigins.has(origin)) {
+    allowed = true;
+  } else if (origin) {
+    try {
+      const u = new URL(origin);
+      const host = u.hostname;
+      // Allow localhost and common private LAN ranges
+      if (/^localhost$/i.test(host) || host === '127.0.0.1') allowed = true;
+      if (/^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(1[6-9]|2\d|3[0-1])\./.test(host)) allowed = true;
+    } catch (e) {
+      // ignore parse errors
+    }
+  }
+
+  if (allowed && origin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') {
-    if (origin && !allowedCorsOrigins.has(origin)) {
+    if (origin && !allowed) {
       return res.status(403).end();
     }
     return res.status(204).end();
@@ -88,6 +106,20 @@ function readAppState() {
 function writeAppState(nextState) {
   fs.mkdirSync(dataDir, { recursive: true });
   fs.writeFileSync(statePath, JSON.stringify(nextState, null, 2), 'utf8');
+}
+
+function getClassSettings(current) {
+  return {
+    padletUrl: current.padletUrl,
+    notebooklmUrl: current.notebooklmUrl,
+    situations: current.situations,
+    chars: current.chars,
+    analysis: current.analysis
+  };
+}
+
+function serializeForInlineScript(value) {
+  return JSON.stringify(value).replace(/</g, '\\u003c');
 }
 
 function normalizeAppState(value) {
@@ -174,6 +206,52 @@ app.post('/api/state', (req, res) => {
   const nextState = mergeAppState(readAppState(), incomingState);
   writeAppState(nextState);
   return res.json({ state: nextState });
+});
+
+app.get('/api/class-settings', (req, res) => {
+  const current = readAppState();
+  res.json({ settings: getClassSettings(current) });
+});
+
+app.post('/api/class-settings', (req, res) => {
+  const incomingSettings = req.body?.settings;
+  if (!incomingSettings || typeof incomingSettings !== 'object') {
+    return res.status(400).json({ error: '저장할 수업 설정 데이터가 필요합니다.' });
+  }
+
+  const current = readAppState();
+  const normalized = normalizeAppState({
+    ...current,
+    ...incomingSettings,
+    students: current.students
+  });
+  writeAppState(normalized);
+  return res.json({ settings: normalized });
+});
+
+app.get('/student-index.html', (req, res) => {
+  const indexPath = path.join(process.cwd(), 'index.html');
+  const current = readAppState();
+  const teacherOrigin = `${req.protocol}://${req.get('host')}`;
+  const injection = [
+    '<script>',
+    `window.CONFLICT_APP_TEACHER_SERVER_URL = ${serializeForInlineScript(teacherOrigin)};`,
+    `window.CONFLICT_APP_DEFAULT_SETTINGS = ${serializeForInlineScript(getClassSettings(current))};`,
+    '</script>'
+  ].join('');
+
+  try {
+    const html = fs.readFileSync(indexPath, 'utf8');
+    const output = html.includes('</head>')
+      ? html.replace('</head>', `${injection}\n</head>`)
+      : `${injection}\n${html}`;
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.send(output);
+  } catch (error) {
+    console.error('학생 배포용 index 생성 오류:', error);
+    return res.status(500).send('학생 배포용 index 파일을 만드는 중 오류가 발생했습니다.');
+  }
 });
 
 function readZipEntryMap(filePath) {
@@ -711,6 +789,24 @@ app.post('/api/padlet', async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`서버가 실행 중입니다: http://localhost:${port}`);
+const host = process.env.HOST || '0.0.0.0';
+
+app.listen(port, host, () => {
+  const ifaces = os.networkInterfaces();
+  const addresses = [];
+  Object.values(ifaces).forEach(list => {
+    if (!list) return;
+    list.forEach(addr => {
+      if (addr.family === 'IPv4' && !addr.internal) addresses.push(addr.address);
+    });
+  });
+
+  console.log(`서버가 실행 중입니다. 바인드: ${host}:${port}`);
+  if (addresses.length) {
+    addresses.forEach(a => {
+      console.log(`학생 접속 URL: http://${a}:${port}/student-index.html`);
+    });
+  } else {
+    console.log(`로컬 접속 URL: http://localhost:${port}/student-index.html`);
+  }
 });

@@ -17,8 +17,20 @@
    OPENAI_MODEL=gpt-5-mini
    PORT=3000
    ```
-4. `npm start`로 로컬 서버를 실행합니다.
+4. `run_server.bat`을 실행합니다.
+   - 현재 실행 배치파일은 Python 보조 서버로 학생 입력 저장과 수업 설정 동기화를 실행합니다.
+   - Windows 방화벽 허용 창이 뜨면 학생 컴퓨터 접속을 위해 허용을 눌러야 합니다.
 5. 브라우저에서 `http://localhost:3000`을 열어 앱을 사용합니다.
+
+## 학생용 index 배포
+
+1. 교사 컴퓨터에서 `run_server.bat`으로 서버를 켭니다.
+2. 관리자 페이지에서 패들렛 링크, 노트북LM 링크, 문제 상황을 입력한 뒤 저장합니다.
+3. 학생에게 나눠 줄 파일은 교사 컴퓨터 IP 주소로 연 `student-index.html`에서 만듭니다.
+   - 현재 이 컴퓨터의 Wi-Fi IP 예: `http://192.168.1.19:3000/student-index.html`
+   - 교사용 컴퓨터에서만 확인할 때는 `http://localhost:3000/student-index.html`도 열 수 있지만, 이 주소로 만든 파일은 학생 컴퓨터에서 교사 서버를 찾지 못할 수 있습니다.
+   - 학생 컴퓨터에 복사할 파일은 반드시 `localhost` 주소가 아니라 교사 컴퓨터 IP 주소로 연 `student-index.html`에서 만들어야 합니다.
+4. 학생이 이 파일을 열고 입력한 내용은 교사 컴퓨터 서버의 `/api/state`로 저장됩니다.
 
 ## OpenAI 분석 기능
 

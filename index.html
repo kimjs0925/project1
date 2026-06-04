@@ -699,7 +699,10 @@
       <button class="back-btn" onclick="showSub('student-situation','student-home')">
         ← 돌아가기
       </button>
-      <p class="page-title">문제 상황 확인하기</p>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px;">
+        <p class="page-title" style="margin:0;">문제 상황 확인하기</p>
+        <button class="btn btn-sm" onclick="refreshStudentSettings()" style="white-space:nowrap;">상황 새로고침</button>
+      </div>
 
       <div class="situation-card" id="sit-card">
         <div class="situation-label">📋 문제 상황</div>
@@ -836,6 +839,14 @@
       </div>
 
       <canvas id="wordcloud-canvas" width="400" height="300" style="width: 100%; max-width: 400px;"></canvas>
+      <div class="field-group" style="margin-top: 1rem;">
+        <label class="field-label">상황별 PNG 다운로드</label>
+        <select id="wordcloud-download-situation-select" style="width: 100%; margin-bottom: 10px;"></select>
+        <div class="inline-group">
+          <button class="btn btn-sm" onclick="downloadSelectedSituationWordCloud()">선택 상황 다운로드</button>
+          <button class="btn btn-sm" onclick="downloadAllSituationWordClouds()">전체 상황 다운로드</button>
+        </div>
+      </div>
     </div>
 
     <div class="card card-success">
@@ -863,7 +874,40 @@
   let selectedSituationId = '';
   let selectedCharacter = '';
   let stateSyncTimer = null;
-  const teacherServerUrl = 'http://192.168.1.63:3000';
+  let classSettingsSyncTimer = null;
+  const teacherServerUrl = window.CONFLICT_APP_TEACHER_SERVER_URL || 'http://192.168.1.19:3000';
+  const deploymentDefaults = window.CONFLICT_APP_DEFAULT_SETTINGS || {};
+
+  function applyDeploymentDefaults() {
+    if (!deploymentDefaults || typeof deploymentDefaults !== 'object') return;
+    if (!state.padletUrl && typeof deploymentDefaults.padletUrl === 'string') {
+      state.padletUrl = deploymentDefaults.padletUrl;
+    }
+    if (!state.notebooklmUrl && typeof deploymentDefaults.notebooklmUrl === 'string') {
+      state.notebooklmUrl = deploymentDefaults.notebooklmUrl;
+    }
+    if (!state.situations.length && Array.isArray(deploymentDefaults.situations)) {
+      state.situations = normalizeSituations(deploymentDefaults.situations);
+    }
+    if (!state.chars.length && Array.isArray(deploymentDefaults.chars)) {
+      state.chars = deploymentDefaults.chars;
+    }
+    if (
+      (!state.analysis?.summary && !state.analysis?.details) &&
+      deploymentDefaults.analysis &&
+      typeof deploymentDefaults.analysis === 'object'
+    ) {
+      state.analysis = {
+        summary: deploymentDefaults.analysis.summary || '',
+        frequency: deploymentDefaults.analysis.frequency || {},
+        details: deploymentDefaults.analysis.details || '',
+        updatedAt: deploymentDefaults.analysis.updatedAt || ''
+      };
+    }
+    if (!currentSituationId || !state.situations.some(s => s.id === currentSituationId)) {
+      currentSituationId = state.situations[0]?.id || '';
+    }
+  }
 
   function apiUrl(path) {
     if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
@@ -947,22 +991,30 @@
     }));
   }
 
-  function applyRemoteState(remote) {
+  function applyRemoteState(remote, options = {}) {
     if (!remote || typeof remote !== 'object') return;
+    const replaceSettings = options.replaceSettings === true;
     const localStudents = state.students || {};
 
-    if (Array.isArray(remote.situations) && remote.situations.length) {
+    if (Array.isArray(remote.situations) && (replaceSettings || remote.situations.length)) {
       state.situations = normalizeSituations(remote.situations);
     }
-    state.padletUrl = remote.padletUrl || state.padletUrl || '';
-    state.notebooklmUrl = remote.notebooklmUrl || state.notebooklmUrl || '';
+    if (Array.isArray(remote.chars) && (replaceSettings || remote.chars.length)) {
+      state.chars = remote.chars;
+    }
+    state.padletUrl = typeof remote.padletUrl === 'string'
+      ? (replaceSettings ? remote.padletUrl : remote.padletUrl || state.padletUrl || '')
+      : state.padletUrl || '';
+    state.notebooklmUrl = typeof remote.notebooklmUrl === 'string'
+      ? (replaceSettings ? remote.notebooklmUrl : remote.notebooklmUrl || state.notebooklmUrl || '')
+      : state.notebooklmUrl || '';
     state.students = mergeStudentResponses(remote.students || {}, localStudents);
     if (remote.analysis && typeof remote.analysis === 'object') {
       state.analysis = {
-        summary: remote.analysis.summary || state.analysis.summary || '',
-        frequency: remote.analysis.frequency || state.analysis.frequency || {},
-        details: remote.analysis.details || state.analysis.details || '',
-        updatedAt: remote.analysis.updatedAt || state.analysis.updatedAt || ''
+        summary: replaceSettings ? remote.analysis.summary || '' : remote.analysis.summary || state.analysis.summary || '',
+        frequency: replaceSettings ? remote.analysis.frequency || {} : remote.analysis.frequency || state.analysis.frequency || {},
+        details: replaceSettings ? remote.analysis.details || '' : remote.analysis.details || state.analysis.details || '',
+        updatedAt: replaceSettings ? remote.analysis.updatedAt || '' : remote.analysis.updatedAt || state.analysis.updatedAt || ''
       };
     }
     if (!currentSituationId || !state.situations.some(s => s.id === currentSituationId)) {
@@ -979,6 +1031,48 @@
     updateCharacterOptions();
     generateWordCloud();
     renderStudentResults();
+  }
+
+  function getClassSettingsPayload() {
+    return {
+      padletUrl: state.padletUrl,
+      notebooklmUrl: state.notebooklmUrl,
+      situations: state.situations,
+      chars: state.chars,
+      analysis: state.analysis
+    };
+  }
+
+  async function syncClassSettingsToServer() {
+    try {
+      const response = await fetch(apiUrl('/api/class-settings'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: getClassSettingsPayload() })
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      applyRemoteState(data.settings, { replaceSettings: true });
+      saveStateLocally();
+    } catch (e) {
+      console.warn('수업 설정 서버 저장 실패: 로컬 저장만 유지합니다.', e);
+    }
+  }
+
+  async function syncClassSettingsFromServer() {
+    try {
+      const response = await fetch(apiUrl('/api/class-settings'));
+      if (!response.ok) return false;
+      const data = await response.json();
+      applyRemoteState(data.settings, { replaceSettings: true });
+      applyDeploymentDefaults();
+      saveStateLocally();
+      renderSyncedState();
+      return true;
+    } catch (e) {
+      console.warn('수업 설정 불러오기 실패: 로컬 저장만 사용합니다.', e);
+      return false;
+    }
   }
 
   function scheduleServerStateSync() {
@@ -1016,10 +1110,49 @@
     }
   }
 
-  function loadState() {
+  async function initializeStudentClassSettings() {
+    await syncClassSettingsFromServer();
+  }
+
+  function startClassSettingsAutoRefresh() {
+    clearInterval(classSettingsSyncTimer);
+    classSettingsSyncTimer = setInterval(() => {
+      if (!document.hidden) {
+        syncClassSettingsFromServer();
+      }
+    }, 10000);
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        syncClassSettingsFromServer();
+      }
+    });
+    window.addEventListener('focus', () => {
+      syncClassSettingsFromServer();
+    });
+  }
+
+  async function refreshStudentSettings() {
+    await syncClassSettingsFromServer();
+    if (currentSituationId) {
+      renderSituationView();
+    }
+  }
+
+  async function loadState() {
     try {
       const saved = localStorage.getItem('conflictAppState');
-      if (!saved) return;
+      if (!saved) {
+        applyDeploymentDefaults();
+        renderAdminFields();
+        renderSituationOptions('student-situation-select', true);
+        // 학생 페이지에서 처음 로드 시 서버에서 동기화 시작
+        if (window.CONFLICT_APP_TEACHER_SERVER_URL) {
+          await syncClassSettingsFromServer().catch(() => {});
+          startClassSettingsAutoRefresh();
+        }
+        return;
+      }
       const parsed = JSON.parse(saved);
 
       if (Array.isArray(parsed.situations)) {
@@ -1046,10 +1179,26 @@
       }
 
       currentSituationId = state.situations[0]?.id || '';
+      applyDeploymentDefaults();
       renderAdminFields();
       renderSituationOptions('student-situation-select', true);
+
+      // 학생 페이지에서 로드 후 서버에서 동기화 시작
+      if (window.CONFLICT_APP_TEACHER_SERVER_URL) {
+        await syncClassSettingsFromServer().catch(() => {});
+        startClassSettingsAutoRefresh();
+      }
     } catch (e) {
       console.warn('상태 불러오기 실패', e);
+      applyDeploymentDefaults();
+      renderAdminFields();
+      renderSituationOptions('student-situation-select', true);
+
+      // 학생 페이지에서 로드 실패 후 서버에서 동기화 시작
+      if (window.CONFLICT_APP_TEACHER_SERVER_URL) {
+        await syncClassSettingsFromServer().catch(() => {});
+        startClassSettingsAutoRefresh();
+      }
     }
   }
 
@@ -1617,14 +1766,18 @@ ${studentEntries}`;
 
     currentSituationId = state.situations[0]?.id || '';
     persistState();
+    syncClassSettingsToServer();
     renderAdminFields();
     renderSituationOptions('student-situation-select', true);
     generateWordCloud();
     renderStudentResults();
   }
 
-  loadState();
-  syncStateFromServer();
+  (async () => {
+    await loadState();
+    await initializeStudentClassSettings();
+    startClassSettingsAutoRefresh();
+  })();
 
   // ── Tab switching ───────────────────────────────────────
   function switchTab(tab) {
@@ -1641,7 +1794,10 @@ ${studentEntries}`;
     document.getElementById(to).classList.add('active');
   }
 
-  function goToSituation() {
+  async function goToSituation() {
+    // 서버에서 최신 상황을 동기화 (학생이 "문제 상황 확인하기"를 클릭했을 때)
+    await syncClassSettingsFromServer();
+
     if (!currentSituationId && state.situations.length) {
       currentSituationId = state.situations[0].id;
     }
@@ -1756,7 +1912,7 @@ ${studentEntries}`;
     }
 
     persistState();
-    syncStateToServer();
+    syncClassSettingsToServer();
     renderAdminFields();
     renderSituationOptions('student-situation-select', true);
     generateWordCloud();
@@ -1857,7 +2013,7 @@ ${studentEntries}`;
     document.querySelectorAll('.tab').forEach((el, i) =>
       el.classList.toggle('active', i === 0)
     );
-    await syncStateFromServer();
+    await syncClassSettingsFromServer();
     if (!state.students[id]) state.students[id] = { responses: {} };
     if (!currentSituationId && state.situations.length) {
       currentSituationId = state.situations[0].id;
@@ -1906,6 +2062,30 @@ ${studentEntries}`;
       option.textContent = situation.title;
       select.appendChild(option);
     });
+
+    updateWordCloudDownloadOptions();
+  }
+
+  function updateWordCloudDownloadOptions() {
+    const select = document.getElementById('wordcloud-download-situation-select');
+    if (!select) return;
+    const previousValue = select.value;
+    select.innerHTML = '<option value="">상황을 선택하세요</option>';
+
+    state.situations.forEach(situation => {
+      const option = document.createElement('option');
+      option.value = situation.id;
+      option.textContent = situation.title;
+      select.appendChild(option);
+    });
+
+    if (state.situations.some(situation => situation.id === previousValue)) {
+      select.value = previousValue;
+    } else if (currentSituationId && state.situations.some(situation => situation.id === currentSituationId)) {
+      select.value = currentSituationId;
+    } else if (state.situations.length) {
+      select.value = state.situations[0].id;
+    }
   }
 
   function updateCharacterOptions() {
@@ -1996,6 +2176,30 @@ ${studentEntries}`;
     return entries.filter(entry => typeof entry?.text === 'string' && entry.text.trim());
   }
 
+  function collectSituationWordCloudEmotions(situationId) {
+    return Object.values(state.students || {})
+      .flatMap(student => getResponseEntries(student, situationId))
+      .filter(entry => typeof entry?.text === 'string' && entry.text.trim());
+  }
+
+  function buildWordCloudList(entries, limit = 50) {
+    const allText = entries.map(e => e.text).join(' ');
+    const words = allText
+      .replace(/[.,!?;:()""''\[\]]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length >= 2 && w.length <= 10)
+      .filter(w => !['하고', '것', '같아요', '있을', '났을', '해서', '나는', '그리고', '하지만', '그래서', '아니라', '때문에', '정말로', '너무', '매우', '조금', '많이', '아주', '그렇게', '이렇게', '저렇게', '어떻게', '왜', '어디', '언제', '누가', '무엇을', '어떤', '이런', '저런', '그런'].includes(w))
+      .map(w => w.toLowerCase());
+
+    const freq = {};
+    words.forEach(w => freq[w] = (freq[w] || 0) + 1);
+
+    return Object.entries(freq)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, limit)
+      .map(([text, weight]) => [text, weight]);
+  }
+
   function drawFallbackWordCloud(canvas, list) {
     const ctx = canvas.getContext('2d');
     const colors = [
@@ -2030,25 +2234,7 @@ ${studentEntries}`;
   // ── Word cloud ──────────────────────────────────────────
   function generateWordCloud() {
     const allEmotions = collectWordCloudEmotions();
-
-    const allText = allEmotions.map(e => e.text).join(' ');
-
-    // 더 정교한 텍스트 전처리 (멘티미터 스타일)
-    const words = allText
-      .replace(/[.,!?;:()""''\[\]]/g, ' ') // 구두점 제거
-      .split(/\s+/)
-      .filter(w => w.length >= 2 && w.length <= 10) // 2-10글자 단어만
-      .filter(w => !['하고', '것', '같아요', '있을', '났을', '해서', '나는', '그리고', '하지만', '그래서', '아니라', '때문에', '정말로', '너무', '매우', '조금', '많이', '아주', '그렇게', '이렇게', '저렇게', '어떻게', '왜', '어디', '언제', '누가', '무엇을', '어떤', '이런', '저런', '그런'].includes(w))
-      .map(w => w.toLowerCase()); // 소문자 통일
-
-    const freq = {};
-    words.forEach(w => freq[w] = (freq[w] || 0) + 1);
-
-    // 상위 50개 단어만 선택 (멘티미터처럼)
-    const list = Object.entries(freq)
-      .sort(([,a], [,b]) => b - a)
-      .slice(0, 50)
-      .map(([text, weight]) => [text, weight]);
+    const list = buildWordCloudList(allEmotions, 50);
 
     // 캔버스 초기화
     const canvas = document.getElementById('wordcloud-canvas');
@@ -2138,6 +2324,130 @@ ${studentEntries}`;
       console.warn('워드클라우드 라이브러리 실행 실패, 기본 렌더링으로 대체합니다.', error);
       drawFallbackWordCloud(canvas, list);
     }
+  }
+
+  function drawDownloadWordCloud(canvas, list, situation, entries) {
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    const colors = ['#2E86AB', '#F26419', '#5C946E', '#9B5DE5', '#E84855', '#0077B6', '#F9A620', '#2A9D8F'];
+    const maxWeight = Math.max(...list.map(([, weight]) => weight));
+    const placed = [];
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, width, height);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#222222';
+    ctx.font = '700 44px Noto Sans KR, sans-serif';
+    ctx.fillText(`${situation.title} 감정 워드클라우드`, width / 2, 62);
+    ctx.font = '400 22px Noto Sans KR, sans-serif';
+    ctx.fillStyle = '#666666';
+    ctx.fillText(`학생 입력 ${entries.length}개 · 생성일 ${new Date().toLocaleDateString('ko-KR')}`, width / 2, 108);
+
+    list.slice(0, 40).forEach(([text, weight], index) => {
+      const scale = Math.log(weight + 1) / Math.log(maxWeight + 1);
+      const fontSize = Math.round(26 + 70 * scale);
+      const angleStep = index * 2.399963;
+      const baseRadius = 12 + index * 18;
+      let drawn = false;
+
+      ctx.font = `700 ${fontSize}px Noto Sans KR, sans-serif`;
+      const textWidth = ctx.measureText(text).width;
+      const box = {
+        width: textWidth + 20,
+        height: fontSize + 20
+      };
+
+      for (let attempt = 0; attempt < 70; attempt += 1) {
+        const radius = baseRadius + attempt * 11;
+        const angle = angleStep + attempt * 0.45;
+        const x = width / 2 + Math.cos(angle) * radius;
+        const y = height / 2 + 55 + Math.sin(angle) * radius * 0.62;
+        const rect = {
+          left: x - box.width / 2,
+          right: x + box.width / 2,
+          top: y - box.height / 2,
+          bottom: y + box.height / 2
+        };
+
+        if (rect.left < 40 || rect.right > width - 40 || rect.top < 140 || rect.bottom > height - 50) {
+          continue;
+        }
+        const overlaps = placed.some(item =>
+          rect.left < item.right && rect.right > item.left && rect.top < item.bottom && rect.bottom > item.top
+        );
+        if (overlaps) continue;
+
+        placed.push(rect);
+        ctx.fillStyle = colors[index % colors.length];
+        ctx.fillText(text, x, y);
+        drawn = true;
+        break;
+      }
+
+      if (!drawn && index < 8) {
+        const y = 190 + index * 72;
+        ctx.fillStyle = colors[index % colors.length];
+        ctx.fillText(text, width / 2, y);
+      }
+    });
+  }
+
+  function sanitizeFileName(name) {
+    return String(name || 'wordcloud')
+      .replace(/[\\/:*?"<>|]/g, '_')
+      .replace(/\s+/g, '_')
+      .slice(0, 80);
+  }
+
+  function downloadCanvasPng(canvas, fileName) {
+    const link = document.createElement('a');
+    link.download = fileName;
+    link.href = canvas.toDataURL('image/png');
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
+  function downloadSituationWordCloud(situationId) {
+    const situation = getSituationById(situationId);
+    if (!situation) {
+      alert('다운로드할 상황을 선택해 주세요.');
+      return false;
+    }
+
+    const entries = collectSituationWordCloudEmotions(situationId);
+    const list = buildWordCloudList(entries, 50);
+    if (!list.length) {
+      alert(`${situation.title}에 다운로드할 감정 데이터가 없습니다.`);
+      return false;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 1200;
+    canvas.height = 800;
+    drawDownloadWordCloud(canvas, list, situation, entries);
+    downloadCanvasPng(canvas, `${sanitizeFileName(situation.title)}_감정_워드클라우드.png`);
+    return true;
+  }
+
+  function downloadSelectedSituationWordCloud() {
+    const select = document.getElementById('wordcloud-download-situation-select');
+    downloadSituationWordCloud(select?.value || currentSituationId || '');
+  }
+
+  function downloadAllSituationWordClouds() {
+    const situationsWithData = state.situations.filter(situation =>
+      buildWordCloudList(collectSituationWordCloudEmotions(situation.id), 1).length
+    );
+    if (!situationsWithData.length) {
+      alert('다운로드할 감정 데이터가 있는 상황이 없습니다.');
+      return;
+    }
+    situationsWithData.forEach((situation, index) => {
+      setTimeout(() => downloadSituationWordCloud(situation.id), index * 250);
+    });
   }
 
   // ── Empathy evaluation ──────────────────────────────────

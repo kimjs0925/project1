@@ -2,8 +2,11 @@ node_modules/
 .venv/
 .data/
 .env
+*.env
 openaiapi.env
 openaiapi*
 제미나이.env.txt
 Padlet학생글.xlsx
 npm-debug.log
+*.log
+__pycache__/

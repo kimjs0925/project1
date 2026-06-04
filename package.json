@@ -10,6 +10,6 @@
   "dependencies": {
     "dotenv": "^16.1.4",
     "express": "^4.18.4",
-    "undici": "^5.5.0"
+    "undici": "^8.2.0"
   }
 }
