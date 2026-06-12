@@ -482,6 +482,29 @@
     .notice.visible {
       animation: slideIn 0.3s ease-out;
     }
+    .sync-status {
+      margin: 10px 0 0;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.4;
+      background: #fff7e6;
+      color: #6f4b00;
+      border: 1px solid #ffd38a;
+      display: none;
+    }
+    .sync-status.ok {
+      display: block;
+      background: #ecfff5;
+      color: #11613a;
+      border-color: #9be7be;
+    }
+    .sync-status.error {
+      display: block;
+      background: #fff0f0;
+      color: #8a1f1f;
+      border-color: #ffb0b0;
+    }
 
     @keyframes slideIn {
       from {
@@ -664,6 +687,7 @@
     <div id="student-home" class="sub-page active">
       <p class="page-title">안녕하세요 👋 <span id="student-id-display"></span></p>
       <p class="page-sub">활동을 선택해 시작해 보세요.</p>
+      <div id="student-sync-status" class="sync-status"></div>
 
     <div class="decorative-line"></div>
 
@@ -736,6 +760,7 @@
   <div id="admin-page" class="page">
     <p class="page-title">관리자 설정</p>
     <p class="page-sub">상황과 링크를 입력한 뒤 저장하세요.</p>
+    <div id="admin-sync-status" class="sync-status"></div>
 
     <div class="decorative-line"></div>
 
@@ -800,6 +825,11 @@
     <div class="card card-success">
       <div class="section-title">📁 저장된 상황 목록</div>
       <div id="situation-list"></div>
+    </div>
+
+    <div class="card card-success">
+      <div class="section-title">📥 학생 작성 내용 다운로드</div>
+      <button class="btn btn-primary btn-full" onclick="downloadStudentResponsesCsv()">CSV 다운로드</button>
     </div>
 
     <div class="card card-accent">
@@ -875,6 +905,7 @@
   let selectedCharacter = '';
   let stateSyncTimer = null;
   let classSettingsSyncTimer = null;
+  let lastClassSettingsSyncOk = false;
   const teacherServerUrl = window.CONFLICT_APP_TEACHER_SERVER_URL || 'http://192.168.1.19:3000';
   const deploymentDefaults = window.CONFLICT_APP_DEFAULT_SETTINGS || {};
 
@@ -924,6 +955,24 @@
       return path;
     }
     return `http://localhost:3000${path}`;
+  }
+
+  function getSyncServerLabel() {
+    return apiUrl('/').replace(/\/$/, '');
+  }
+
+  function updateSyncStatus(ok, message) {
+    lastClassSettingsSyncOk = ok;
+    const statusText = message || (ok
+      ? `서버 연결됨: ${getSyncServerLabel()}`
+      : `서버 연결 안 됨: ${getSyncServerLabel()} · run_server.bat을 켜고 방화벽을 허용해 주세요.`);
+    ['student-sync-status', 'admin-sync-status'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = statusText;
+      el.classList.toggle('ok', ok);
+      el.classList.toggle('error', !ok);
+    });
   }
 
   function saveStateLocally() {
@@ -1050,27 +1099,39 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings: getClassSettingsPayload() })
       });
-      if (!response.ok) return;
+      if (!response.ok) {
+        updateSyncStatus(false);
+        return false;
+      }
       const data = await response.json();
       applyRemoteState(data.settings, { replaceSettings: true });
       saveStateLocally();
+      updateSyncStatus(true);
+      return true;
     } catch (e) {
       console.warn('수업 설정 서버 저장 실패: 로컬 저장만 유지합니다.', e);
+      updateSyncStatus(false);
+      return false;
     }
   }
 
   async function syncClassSettingsFromServer() {
     try {
       const response = await fetch(apiUrl('/api/class-settings'));
-      if (!response.ok) return false;
+      if (!response.ok) {
+        updateSyncStatus(false);
+        return false;
+      }
       const data = await response.json();
       applyRemoteState(data.settings, { replaceSettings: true });
       applyDeploymentDefaults();
       saveStateLocally();
       renderSyncedState();
+      updateSyncStatus(true);
       return true;
     } catch (e) {
       console.warn('수업 설정 불러오기 실패: 로컬 저장만 사용합니다.', e);
+      updateSyncStatus(false);
       return false;
     }
   }
@@ -1088,25 +1149,39 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ state })
       });
-      if (!response.ok) return;
+      if (!response.ok) {
+        updateSyncStatus(false);
+        return false;
+      }
       const data = await response.json();
       applyRemoteState(data.state);
       saveStateLocally();
+      updateSyncStatus(true);
+      return true;
     } catch (e) {
       console.warn('서버 상태 저장 실패: 로컬 저장만 유지합니다.', e);
+      updateSyncStatus(false);
+      return false;
     }
   }
 
   async function syncStateFromServer() {
     try {
       const response = await fetch(apiUrl('/api/state'));
-      if (!response.ok) return;
+      if (!response.ok) {
+        updateSyncStatus(false);
+        return false;
+      }
       const data = await response.json();
       applyRemoteState(data.state);
       saveStateLocally();
       renderSyncedState();
+      updateSyncStatus(true);
+      return true;
     } catch (e) {
       console.warn('서버 상태 불러오기 실패: 로컬 저장만 사용합니다.', e);
+      updateSyncStatus(false);
+      return false;
     }
   }
 
@@ -1133,7 +1208,10 @@
   }
 
   async function refreshStudentSettings() {
-    await syncClassSettingsFromServer();
+    const synced = await syncClassSettingsFromServer();
+    if (!synced) {
+      alert('선생님 컴퓨터 서버에 연결되지 않았습니다. 선생님에게 run_server.bat 실행 상태와 방화벽 허용을 확인해 달라고 해 주세요.');
+    }
     if (currentSituationId) {
       renderSituationView();
     }
@@ -1796,7 +1874,10 @@ ${studentEntries}`;
 
   async function goToSituation() {
     // 서버에서 최신 상황을 동기화 (학생이 "문제 상황 확인하기"를 클릭했을 때)
-    await syncClassSettingsFromServer();
+    const synced = await syncClassSettingsFromServer();
+    if (!synced) {
+      alert('선생님 컴퓨터 서버에 연결되지 않아 최신 상황을 가져오지 못했습니다.');
+    }
 
     if (!currentSituationId && state.situations.length) {
       currentSituationId = state.situations[0].id;
@@ -1884,7 +1965,7 @@ ${studentEntries}`;
   }
 
   // ── Admin: save ─────────────────────────────────────────
-  function saveSituation() {
+  async function saveSituation() {
     state.padletUrl = document.getElementById('padlet-url').value.trim();
     state.notebooklmUrl = document.getElementById('notebooklm-url').value.trim();
     const title = document.getElementById('situation-title').value.trim() || `상황${state.situations.length + 1}`;
@@ -1912,15 +1993,18 @@ ${studentEntries}`;
     }
 
     persistState();
-    syncClassSettingsToServer();
+    const serverSaved = await syncClassSettingsToServer();
     renderAdminFields();
     renderSituationOptions('student-situation-select', true);
     generateWordCloud();
     renderStudentResults();
 
     const notice = document.getElementById('save-notice');
+    notice.textContent = serverSaved
+      ? '✅ 서버에 저장되었습니다. 학생 페이지에 반영됩니다.'
+      : '⚠️ 이 컴퓨터에만 저장되었습니다. 서버 연결이 안 되어 학생 페이지에는 반영되지 않습니다.';
     notice.classList.add('visible');
-    setTimeout(() => notice.classList.remove('visible'), 3000);
+    setTimeout(() => notice.classList.remove('visible'), serverSaved ? 3000 : 8000);
   }
 
   // ── Student: situation view ─────────────────────────────
@@ -2448,6 +2532,64 @@ ${studentEntries}`;
     situationsWithData.forEach((situation, index) => {
       setTimeout(() => downloadSituationWordCloud(situation.id), index * 250);
     });
+  }
+
+  function csvCell(value) {
+    return `"${String(value ?? '').replace(/"/g, '""')}"`;
+  }
+
+  function collectStudentResponseRows() {
+    const situationMap = new Map(state.situations.map(situation => [situation.id, situation]));
+    return Object.entries(state.students || {}).flatMap(([studentId, student]) =>
+      Object.entries(student?.responses || {}).flatMap(([situationId, responses]) => {
+        if (!Array.isArray(responses)) return [];
+        const situation = situationMap.get(situationId);
+        return responses.map(entry => ({
+          studentId,
+          situationTitle: situation?.title || '',
+          situationId,
+          character: entry?.who || '',
+          text: entry?.text || '',
+          time: entry?.time || ''
+        }));
+      })
+    ).sort((a, b) =>
+      Number(a.studentId) - Number(b.studentId) ||
+      a.situationTitle.localeCompare(b.situationTitle, 'ko') ||
+      a.character.localeCompare(b.character, 'ko') ||
+      a.time.localeCompare(b.time)
+    );
+  }
+
+  async function downloadStudentResponsesCsv() {
+    await syncStateFromServer().catch(() => false);
+    const rows = collectStudentResponseRows();
+    if (!rows.length) {
+      alert('다운로드할 학생 작성 내용이 없습니다.');
+      return;
+    }
+
+    const header = ['학생 번호', '상황 제목', '상황 ID', '등장인물', '작성 내용', '작성 시간'];
+    const csv = [
+      header.map(csvCell).join(','),
+      ...rows.map(row => [
+        row.studentId,
+        row.situationTitle,
+        row.situationId,
+        row.character,
+        row.text,
+        row.time
+      ].map(csvCell).join(','))
+    ].join('\r\n');
+
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `학생_작성_내용_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    URL.revokeObjectURL(link.href);
+    link.remove();
   }
 
   // ── Empathy evaluation ──────────────────────────────────
