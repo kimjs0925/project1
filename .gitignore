@@ -1,8 +1,13 @@
 node_modules/
 .venv/
 .data/
+.codex/
+.cursor/
+.playwright-mcp/
 .env
 *.env
+*.env.txt
+*.xlsx
 openaiapi.env
 openaiapi*
 제미나이.env.txt

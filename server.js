@@ -13,6 +13,7 @@ const port = process.env.PORT || 3000;
 const openaiSecretPath = path.resolve(process.cwd(), 'openaiapi.env');
 const dataDir = path.resolve(process.cwd(), '.data');
 const statePath = path.join(dataDir, 'conflict-state.json');
+const morningRecordsPath = path.join(dataDir, 'morning-records.json');
 
 function loadOpenAIApiKey() {
   if (process.env.OPENAI_API_KEY) return process.env.OPENAI_API_KEY;
@@ -70,7 +71,7 @@ app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
   res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') {
     if (origin && !allowed) {
@@ -106,6 +107,86 @@ function readAppState() {
 function writeAppState(nextState) {
   fs.mkdirSync(dataDir, { recursive: true });
   fs.writeFileSync(statePath, JSON.stringify(nextState, null, 2), 'utf8');
+}
+
+function serverLocalDateKey(value = new Date().toISOString()) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getMorningRecordDateKey(record) {
+  if (!record) return '';
+  return record.recordDate || serverLocalDateKey(record.startedAt || record.updatedAt || record.completedAt);
+}
+
+function normalizeMorningRecord(record) {
+  if (!record || typeof record !== 'object') return null;
+  const studentNo = String(Number(record.studentNo));
+  if (!studentNo || studentNo === 'NaN') return null;
+  return {
+    ...record,
+    studentNo,
+    recordDate: getMorningRecordDateKey(record) || serverLocalDateKey(),
+    answers: record.answers && typeof record.answers === 'object' ? record.answers : {},
+    transcript: Array.isArray(record.transcript) ? record.transcript : [],
+    startedAt: record.startedAt || new Date().toISOString(),
+    updatedAt: record.updatedAt || new Date().toISOString(),
+    completedAt: record.completedAt || ''
+  };
+}
+
+function readMorningStore() {
+  try {
+    if (!fs.existsSync(morningRecordsPath)) return { records: {}, history: {}, deleted: {} };
+    const parsed = JSON.parse(fs.readFileSync(morningRecordsPath, 'utf8'));
+    const sourceRecords = parsed?.records && typeof parsed.records === 'object'
+      ? parsed.records
+      : parsed && typeof parsed === 'object'
+        ? parsed
+        : {};
+    const sourceHistory = parsed?.history && typeof parsed.history === 'object' ? parsed.history : {};
+    const records = {};
+    const history = {};
+    Object.entries(sourceRecords).forEach(([key, record]) => {
+      const normalized = normalizeMorningRecord({ ...record, studentNo: record?.studentNo || key });
+      if (normalized) {
+        const recordDate = getMorningRecordDateKey(normalized);
+        records[normalized.studentNo] = normalized;
+        if (!history[normalized.studentNo]) history[normalized.studentNo] = {};
+        history[normalized.studentNo][recordDate] = normalized;
+      }
+    });
+    Object.entries(sourceHistory).forEach(([studentNo, recordsByDate]) => {
+      if (!recordsByDate || typeof recordsByDate !== 'object') return;
+      Object.entries(recordsByDate).forEach(([dateKey, record]) => {
+        const normalized = normalizeMorningRecord({ ...record, studentNo, recordDate: record?.recordDate || dateKey });
+        if (!normalized) return;
+        if (!history[normalized.studentNo]) history[normalized.studentNo] = {};
+        history[normalized.studentNo][getMorningRecordDateKey(normalized)] = normalized;
+      });
+    });
+    return {
+      records,
+      history,
+      deleted: parsed?.deleted && typeof parsed.deleted === 'object' ? parsed.deleted : {}
+    };
+  } catch (error) {
+    console.error('아침대화 기록 읽기 오류:', error);
+    return { records: {}, history: {}, deleted: {} };
+  }
+}
+
+function writeMorningStore(store) {
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(morningRecordsPath, JSON.stringify({
+    records: store.records || {},
+    history: store.history || {},
+    deleted: store.deleted || {}
+  }, null, 2), 'utf8');
 }
 
 function getClassSettings(current) {
@@ -600,6 +681,169 @@ async function analyzePadletPostsWithOpenAI(posts) {
     source: 'openai'
   };
 }
+
+function compactText(value, maxLength = 600) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength);
+}
+
+function normalizeMorningFeedbackResult(result) {
+  const feedback = compactText(result?.feedback, 180);
+  return {
+    feedback: feedback || '말해줘서 고마워. 네 이야기를 잘 기억해둘게.',
+    tone: compactText(result?.tone, 24) || 'supportive',
+    needsTeacherAttention: Boolean(result?.needsTeacherAttention)
+  };
+}
+
+function buildMorningFeedbackPrompt(payload) {
+  const questionLabel = compactText(payload.questionLabel, 40);
+  const questionKey = compactText(payload.questionKey, 24);
+  const answer = compactText(payload.answer, 700);
+  const summary = compactText(payload.summary, 160);
+  const expression = compactText(payload.expression, 80);
+  const previousAnswers = Array.isArray(payload.previousAnswers)
+    ? payload.previousAnswers
+      .slice(0, 5)
+      .map(item => `${compactText(item.label, 30)}: ${compactText(item.summary || item.raw, 120)}`)
+      .filter(Boolean)
+      .join('\n')
+    : '';
+
+  return `너는 초등학생 아침대화 앱의 따뜻한 대화 친구 '콩이'입니다.
+학생의 방금 답변을 읽고, 그 내용에 꼭 맞는 짧은 피드백을 한국어로 작성해 주세요.
+
+반드시 아래 JSON 하나만 출력하세요. 마크다운 코드블록은 쓰지 마세요.
+{
+  "feedback": "학생 답변 내용에 맞춘 1~2문장 피드백",
+  "tone": "supportive | calm | encouraging | concerned",
+  "needsTeacherAttention": false
+}
+
+규칙:
+- 학생이 실제로 말한 구체적인 내용을 한 가지 반영합니다.
+- 초등학생에게 말하듯 쉽고 부드럽게 말합니다.
+- 길이는 120자 안팎으로 유지합니다.
+- 의학적 진단, 심리 진단, 단정, 훈계, 해결책 강요는 하지 않습니다.
+- 학생이 "없어", "괜찮아", "보통"처럼 말하면 억지로 문제를 만들지 말고 짧게 인정합니다.
+- 자해, 폭력, 학대, 심한 두려움, 안전 위험이 보이면 needsTeacherAttention을 true로 두고 "선생님이 확인할 수 있게 정리해둘게"처럼 안전하게 말합니다.
+- 개인정보를 늘리거나 새 사실을 만들어내지 않습니다.
+
+현재 질문:
+- key: ${questionKey}
+- label: ${questionLabel}
+
+학생 답변:
+${answer}
+
+규칙 기반 요약:
+${summary || '없음'}
+
+이전 답변 요약:
+${previousAnswers || '없음'}
+
+카메라 표정 참고:
+${expression || '없음'}`;
+}
+
+app.post('/api/morning-feedback', async (req, res) => {
+  const { questionKey, questionLabel, answer } = req.body || {};
+  if (!questionKey || !questionLabel || !answer || typeof answer !== 'string' || !answer.trim()) {
+    return res.status(400).json({ error: '피드백을 만들 질문과 학생 답변을 포함해 주세요.' });
+  }
+  if (!openaiApiKey) {
+    return res.status(503).json({ error: 'OPENAI_API_KEY가 설정되지 않았습니다.' });
+  }
+
+  try {
+    const result = await requestOpenAIJson(buildMorningFeedbackPrompt(req.body));
+    return res.json({ feedback: normalizeMorningFeedbackResult(result), source: 'openai' });
+  } catch (error) {
+    console.error('아침대화 맞춤 피드백 오류:', error.message);
+    return res.status(500).json({ error: '맞춤 피드백을 만드는 중 오류가 발생했습니다.' });
+  }
+});
+
+app.get('/api/morning-records', (req, res) => {
+  const store = readMorningStore();
+  return res.json({ records: store.records, updatedAt: new Date().toISOString() });
+});
+
+app.get('/api/morning-records/:studentNo/history', (req, res) => {
+  const studentNo = String(Number(req.params.studentNo));
+  const store = readMorningStore();
+  const recordsByDate = store.history[studentNo] || {};
+  const records = Object.values(recordsByDate)
+    .map(record => normalizeMorningRecord(record))
+    .filter(Boolean)
+    .sort((a, b) => getMorningRecordDateKey(b).localeCompare(getMorningRecordDateKey(a)));
+
+  return res.json({ studentNo, records });
+});
+
+app.post('/api/morning-records', (req, res) => {
+  const record = normalizeMorningRecord(req.body?.record);
+  if (!record) {
+    return res.status(400).json({ error: '저장할 학생 기록이 올바르지 않습니다.' });
+  }
+
+  const store = readMorningStore();
+  const deleted = store.deleted[record.studentNo];
+  const recordDate = getMorningRecordDateKey(record);
+  const recordStartedAt = new Date(record.startedAt || record.updatedAt || 0).getTime();
+  const deletedAt = new Date(deleted?.deletedAt || 0).getTime();
+
+  if (deleted?.recordDate === recordDate && deletedAt && recordStartedAt && recordStartedAt < deletedAt) {
+    return res.status(409).json({
+      error: '이미 삭제된 이전 기록입니다.',
+      reason: 'deleted-record',
+      recordDate
+    });
+  }
+
+  store.records[record.studentNo] = record;
+  if (!store.history[record.studentNo]) store.history[record.studentNo] = {};
+  store.history[record.studentNo][recordDate] = record;
+  if (deleted?.recordDate === recordDate) {
+    delete store.deleted[record.studentNo];
+  }
+  writeMorningStore(store);
+  return res.json({ ok: true, record });
+});
+
+app.delete('/api/morning-records/:studentNo', (req, res) => {
+  const studentNo = String(Number(req.params.studentNo));
+  const dateKey = String(req.query.date || '');
+  const store = readMorningStore();
+  const record = store.records[studentNo];
+  const historyRecord = dateKey ? store.history[studentNo]?.[dateKey] : null;
+  const targetRecord = dateKey ? (historyRecord || record) : record;
+
+  if (!targetRecord) {
+    return res.status(404).json({ ok: false, reason: 'not-found' });
+  }
+
+  const recordDate = getMorningRecordDateKey(targetRecord);
+  if (dateKey && recordDate !== dateKey) {
+    return res.status(409).json({ ok: false, reason: 'date-mismatch', recordDate });
+  }
+
+  if (!dateKey || getMorningRecordDateKey(record) === recordDate) {
+    delete store.records[studentNo];
+  }
+  if (store.history[studentNo]) {
+    delete store.history[studentNo][recordDate];
+    if (!Object.keys(store.history[studentNo]).length) delete store.history[studentNo];
+  }
+  store.deleted[studentNo] = {
+    recordDate,
+    deletedAt: new Date().toISOString()
+  };
+  writeMorningStore(store);
+  return res.json({ ok: true, recordDate });
+});
 
 app.get('/api/padlet-file-analysis', async (req, res) => {
   const filePath = path.resolve(process.cwd(), 'Padlet학생글.xlsx');

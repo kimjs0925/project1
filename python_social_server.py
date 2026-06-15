@@ -1,18 +1,22 @@
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
+from datetime import datetime
 import json
 import mimetypes
 import os
 import re
 import socket
+import threading
 
 
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / ".data"
 STATE_PATH = DATA_DIR / "conflict-state.json"
+MORNING_RECORDS_PATH = DATA_DIR / "morning-records.json"
 PORT = int(os.environ.get("PORT", "3000"))
 HOST = os.environ.get("HOST", "0.0.0.0")
+MORNING_STORE_LOCK = threading.Lock()
 
 EMPTY_STATE = {
     "padletUrl": "",
@@ -24,6 +28,117 @@ EMPTY_STATE = {
 }
 
 BLOCKED_NAMES = {".env", "openaiapi.env", "제미나이.env.txt"}
+STUDENT_COPY_PATH = ROOT / "student-index-copy.html"
+
+
+def now_iso():
+    return datetime.now().astimezone().isoformat()
+
+
+def local_date_key(value=None):
+    if not value:
+        return datetime.now().astimezone().strftime("%Y-%m-%d")
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return parsed.astimezone().strftime("%Y-%m-%d")
+    except Exception:
+        return ""
+
+
+def parse_iso_timestamp(value):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+    except Exception:
+        return None
+
+
+def get_morning_record_date_key(record):
+    if not isinstance(record, dict):
+        return ""
+    if isinstance(record.get("recordDate"), str) and record["recordDate"].strip():
+        return record["recordDate"].strip()
+    return local_date_key(record.get("startedAt") or record.get("updatedAt") or record.get("completedAt"))
+
+
+def normalize_morning_record(record):
+    if not isinstance(record, dict):
+        return None
+    try:
+        student_no = str(int(record.get("studentNo")))
+    except Exception:
+        return None
+    if not student_no:
+        return None
+
+    normalized = dict(record)
+    normalized["studentNo"] = student_no
+    normalized["recordDate"] = get_morning_record_date_key(normalized) or local_date_key()
+    normalized["answers"] = normalized.get("answers") if isinstance(normalized.get("answers"), dict) else {}
+    normalized["transcript"] = normalized.get("transcript") if isinstance(normalized.get("transcript"), list) else []
+    normalized["startedAt"] = normalized.get("startedAt") or now_iso()
+    normalized["updatedAt"] = normalized.get("updatedAt") or now_iso()
+    normalized["completedAt"] = normalized.get("completedAt") if isinstance(normalized.get("completedAt"), str) else ""
+    return normalized
+
+
+def empty_morning_store():
+    return {"records": {}, "history": {}, "deleted": {}}
+
+
+def read_morning_store():
+    if not MORNING_RECORDS_PATH.exists():
+        return empty_morning_store()
+    try:
+        parsed = json.loads(MORNING_RECORDS_PATH.read_text(encoding="utf-8"))
+        if not isinstance(parsed, dict):
+            return empty_morning_store()
+
+        source_records = parsed.get("records") if isinstance(parsed.get("records"), dict) else parsed
+        source_history = parsed.get("history") if isinstance(parsed.get("history"), dict) else {}
+        records = {}
+        history = {}
+
+        for key, record in source_records.items():
+            if not isinstance(record, dict):
+                continue
+            normalized = normalize_morning_record({**record, "studentNo": record.get("studentNo") or key})
+            if not normalized:
+                continue
+            record_date = get_morning_record_date_key(normalized)
+            records[normalized["studentNo"]] = normalized
+            history.setdefault(normalized["studentNo"], {})[record_date] = normalized
+
+        for student_no, records_by_date in source_history.items():
+            if not isinstance(records_by_date, dict):
+                continue
+            for date_key, record in records_by_date.items():
+                if not isinstance(record, dict):
+                    continue
+                normalized = normalize_morning_record({
+                    **record,
+                    "studentNo": student_no,
+                    "recordDate": record.get("recordDate") or date_key,
+                })
+                if not normalized:
+                    continue
+                history.setdefault(normalized["studentNo"], {})[get_morning_record_date_key(normalized)] = normalized
+
+        deleted = parsed.get("deleted") if isinstance(parsed.get("deleted"), dict) else {}
+        return {"records": records, "history": history, "deleted": deleted}
+    except Exception:
+        return empty_morning_store()
+
+
+def write_morning_store(store):
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    next_store = {
+        "records": store.get("records") if isinstance(store.get("records"), dict) else {},
+        "history": store.get("history") if isinstance(store.get("history"), dict) else {},
+        "deleted": store.get("deleted") if isinstance(store.get("deleted"), dict) else {},
+    }
+    MORNING_RECORDS_PATH.write_text(json.dumps(next_store, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def normalize_state(value):
@@ -139,6 +254,26 @@ def inline_script_value(value):
     return json.dumps(value, ensure_ascii=False).replace("</", "<\\/")
 
 
+def build_student_index_html(origin):
+    index_path = ROOT / "index.html"
+    injection = (
+        "<script>"
+        f"window.CONFLICT_APP_TEACHER_SERVER_URL = {inline_script_value(origin)};"
+        f"window.CONFLICT_APP_DEFAULT_SETTINGS = {inline_script_value(get_class_settings(read_state()))};"
+        "</script>\n"
+    )
+    html = index_path.read_text(encoding="utf-8")
+    return html.replace("</head>", f"{injection}</head>") if "</head>" in html else injection + html
+
+
+def write_student_copy(origin):
+    try:
+        STUDENT_COPY_PATH.write_text(build_student_index_html(origin), encoding="utf-8")
+        print(f"학생 배포용 복사 파일 생성: {STUDENT_COPY_PATH.name}", flush=True)
+    except Exception as error:
+        print(f"학생 배포용 복사 파일 생성 실패: {error}", flush=True)
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         print(f"{self.address_string()} - {format % args}")
@@ -178,6 +313,27 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(200, {"state": read_state()})
         if route == "/api/class-settings":
             return self.send_json(200, {"settings": get_class_settings(read_state())})
+        if route == "/api/morning-records":
+            with MORNING_STORE_LOCK:
+                store = read_morning_store()
+            return self.send_json(200, {"records": store["records"], "updatedAt": now_iso()})
+        history_match = re.match(r"^/api/morning-records/(\d+)/history$", route)
+        if history_match:
+            student_no = str(int(history_match.group(1)))
+            with MORNING_STORE_LOCK:
+                store = read_morning_store()
+            records_by_date = store["history"].get(student_no, {})
+            records = [
+                normalize_morning_record(record)
+                for record in records_by_date.values()
+            ]
+            records = [
+                record
+                for record in records
+                if record
+            ]
+            records.sort(key=get_morning_record_date_key, reverse=True)
+            return self.send_json(200, {"studentNo": student_no, "records": records})
         if route == "/student-index.html":
             return self.send_student_index()
         if route == "/":
@@ -208,22 +364,82 @@ class Handler(BaseHTTPRequestHandler):
             write_state(next_state)
             return self.send_json(200, {"settings": next_state})
 
+        if parsed.path == "/api/morning-records":
+            record = normalize_morning_record(body.get("record"))
+            if not record:
+                return self.send_json(400, {"error": "저장할 학생 기록이 올바르지 않습니다."})
+
+            with MORNING_STORE_LOCK:
+                store = read_morning_store()
+                deleted = store["deleted"].get(record["studentNo"])
+                record_date = get_morning_record_date_key(record)
+                record_started_at = parse_iso_timestamp(record.get("startedAt") or record.get("updatedAt"))
+                deleted_at = parse_iso_timestamp(deleted.get("deletedAt")) if isinstance(deleted, dict) else None
+
+                if (
+                    isinstance(deleted, dict)
+                    and deleted.get("recordDate") == record_date
+                    and deleted_at
+                    and record_started_at
+                    and record_started_at < deleted_at
+                ):
+                    return self.send_json(409, {
+                        "error": "이미 삭제된 이전 기록입니다.",
+                        "reason": "deleted-record",
+                        "recordDate": record_date,
+                    })
+
+                store["records"][record["studentNo"]] = record
+                store["history"].setdefault(record["studentNo"], {})[record_date] = record
+                if isinstance(deleted, dict) and deleted.get("recordDate") == record_date:
+                    store["deleted"].pop(record["studentNo"], None)
+                write_morning_store(store)
+            return self.send_json(200, {"ok": True, "record": record})
+
+        if parsed.path == "/api/morning-feedback":
+            return self.send_json(503, {"error": "맞춤 피드백 서버를 사용할 수 없어 기본 피드백을 사용합니다."})
+
         return self.send_json(404, {"error": "찾을 수 없는 API입니다."})
 
+    def do_DELETE(self):
+        parsed = urlparse(self.path)
+        route = parsed.path
+        delete_match = re.match(r"^/api/morning-records/(\d+)$", route)
+        if not delete_match:
+            return self.send_json(404, {"error": "찾을 수 없는 API입니다."})
+
+        student_no = str(int(delete_match.group(1)))
+        date_key = (parse_qs(parsed.query).get("date") or [""])[0]
+        with MORNING_STORE_LOCK:
+            store = read_morning_store()
+            record = store["records"].get(student_no)
+            history_record = store["history"].get(student_no, {}).get(date_key) if date_key else None
+            target_record = (history_record or record) if date_key else record
+
+            if not target_record:
+                return self.send_json(404, {"ok": False, "reason": "not-found"})
+
+            record_date = get_morning_record_date_key(target_record)
+            if date_key and record_date != date_key:
+                return self.send_json(409, {"ok": False, "reason": "date-mismatch", "recordDate": record_date})
+
+            if not date_key or get_morning_record_date_key(record) == record_date:
+                store["records"].pop(student_no, None)
+            if student_no in store["history"]:
+                store["history"][student_no].pop(record_date, None)
+                if not store["history"][student_no]:
+                    store["history"].pop(student_no, None)
+            store["deleted"][student_no] = {"recordDate": record_date, "deletedAt": now_iso()}
+            write_morning_store(store)
+
+        return self.send_json(200, {"ok": True, "recordDate": record_date})
+
     def send_student_index(self):
-        index_path = ROOT / "index.html"
-        if not index_path.exists():
+        if not (ROOT / "index.html").exists():
             self.send_error(404)
             return
         origin = f"http://{self.headers.get('Host', f'localhost:{PORT}')}"
-        injection = (
-            "<script>"
-            f"window.CONFLICT_APP_TEACHER_SERVER_URL = {inline_script_value(origin)};"
-            f"window.CONFLICT_APP_DEFAULT_SETTINGS = {inline_script_value(get_class_settings(read_state()))};"
-            "</script>\n"
-        )
-        html = index_path.read_text(encoding="utf-8")
-        html = html.replace("</head>", f"{injection}</head>") if "</head>" in html else injection + html
+        html = build_student_index_html(origin)
         raw = html.encode("utf-8")
         self.send_response(200)
         self.add_cors_headers()
@@ -256,12 +472,16 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     print(f"사회정서앱 서버 실행 중: http://localhost:{PORT}", flush=True)
+    student_origin = None
     try:
         probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         probe.connect(("8.8.8.8", 80))
         lan_ip = probe.getsockname()[0]
         probe.close()
-        print(f"학생용 파일 주소: http://{lan_ip}:{PORT}/student-index.html", flush=True)
+        student_origin = f"http://{lan_ip}:{PORT}"
+        print(f"학생용 파일 주소: {student_origin}/student-index.html", flush=True)
     except Exception:
         print(f"학생용 파일 주소 예: http://<교사컴퓨터IP>:{PORT}/student-index.html", flush=True)
+    if student_origin:
+        write_student_copy(student_origin)
     ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()

@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>아침대화 관리자 페이지</title>
+  <link rel="stylesheet" href="morning-style.css" />
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <div>
+          <h1>아침대화 관리자</h1>
+          <p class="subtitle">학생들의 아침 상태를 모아 보고, 요약 리포트로 내려받아요.</p>
+        </div>
+      </div>
+      <nav class="nav-actions" aria-label="페이지 이동">
+        <a class="btn secondary" href="index.html">처음으로</a>
+        <a class="btn primary" href="student.html">학생창</a>
+      </nav>
+    </header>
+
+    <section class="card" id="adminGate">
+      <div class="card-head">
+        <h2 class="card-title">관리자 확인</h2>
+        <span class="pill">교사용</span>
+      </div>
+      <form class="card-body" id="adminLoginForm">
+        <p class="subtitle" id="adminGateHelp">처음 열 때는 관리자 비밀번호를 정하고, 다음부터는 그 비밀번호로 들어갑니다.</p>
+        <div class="fallback-form show">
+          <input class="text-input" id="adminPasscode" type="password" autocomplete="current-password" placeholder="관리자 비밀번호" />
+          <button class="btn primary" type="submit">확인</button>
+        </div>
+      </form>
+    </section>
+
+    <div id="adminContent" class="hidden">
+    <section class="stats-grid" aria-label="전체 현황">
+      <div class="stat">
+        <span>완료 학생</span>
+        <strong id="completedCount">0</strong>
+      </div>
+      <div class="stat">
+        <span>확인 필요</span>
+        <strong id="attentionCount">0</strong>
+      </div>
+      <div class="stat">
+        <span>아침밥 미섭취</span>
+        <strong id="noBreakfastCount">0</strong>
+      </div>
+      <div class="stat">
+        <span>친구 갈등 있음</span>
+        <strong id="conflictCount">0</strong>
+      </div>
+    </section>
+
+    <div class="download-row">
+      <button class="btn" id="downloadReport" type="button">요약 리포트 다운로드</button>
+      <button class="btn secondary" id="downloadCsv" type="button">CSV 다운로드</button>
+      <button class="btn secondary" id="refreshData" type="button">새로고침</button>
+      <span class="privacy-note" id="syncStatus">저장 상태 확인 중...</span>
+    </div>
+
+    <section class="card delete-card">
+      <div class="card-head">
+        <h2 class="card-title">저장 기록 삭제</h2>
+        <span class="pill">날짜와 학생 확인</span>
+      </div>
+      <form class="delete-form" id="deleteRecordForm">
+        <label>
+          날짜
+          <input class="text-input" id="deleteDate" type="date" />
+        </label>
+        <label>
+          학생
+          <select class="text-input" id="deleteStudentNo"></select>
+        </label>
+        <button class="btn warning" type="submit">선택 기록 삭제</button>
+      </form>
+      <p class="privacy-note" id="deleteMessage">선택한 날짜와 학생 번호가 저장 기록과 일치할 때만 삭제됩니다.</p>
+    </section>
+
+    <section class="admin-grid">
+      <article class="card">
+        <div class="card-head">
+          <h2 class="card-title">학생별 결과</h2>
+          <span class="pill" id="savedCount">저장 0명</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>번호</th>
+                <th>비밀번호</th>
+                <th>상태</th>
+                <th>수면상태</th>
+                <th>아침밥 유무</th>
+                <th>특이사항</th>
+                <th>아침기분</th>
+                <th>카메라 표정 신호</th>
+                <th>표정 변화</th>
+                <th>친구와의 갈등상황</th>
+              </tr>
+            </thead>
+            <tbody id="studentTableBody"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <aside class="card">
+        <div class="card-head">
+          <h2 class="card-title" id="detailTitle">학생 상세</h2>
+          <span class="pill" id="detailUpdated">선택 대기</span>
+        </div>
+        <div class="card-body">
+          <div class="detail-list" id="detailList"></div>
+          <div class="detail-item">
+            <strong>학생 비밀번호</strong>
+            <p id="passcodeList">관리자 확인 후 표시됩니다.</p>
+          </div>
+        </div>
+      </aside>
+    </section>
+    </div>
+  </main>
+
+  <script src="morning-shared.js?v=20260615-sync-fallback"></script>
+  <script>
+    const {
+      STUDENT_COUNT,
+      questions,
+      deleteStudentRecord,
+      getAllStudentRows,
+      getAllStudentRowsAsync,
+      getAnswer,
+      getStudentPasscode,
+      formatDate,
+      localDateKey,
+      getRecordDateKey,
+      loadRecordsFromServer,
+      getRecordsSyncStatus,
+      deleteStudentRecordFromServer,
+      getStudentRecordHistoryFromServer,
+      buildOverallReport,
+      buildCsv,
+      downloadText,
+      needsAttention
+    } = window.MorningApp;
+
+    const completedCount = document.getElementById('completedCount');
+    const attentionCount = document.getElementById('attentionCount');
+    const noBreakfastCount = document.getElementById('noBreakfastCount');
+    const conflictCount = document.getElementById('conflictCount');
+    const savedCount = document.getElementById('savedCount');
+    const studentTableBody = document.getElementById('studentTableBody');
+    const detailTitle = document.getElementById('detailTitle');
+    const detailUpdated = document.getElementById('detailUpdated');
+    const detailList = document.getElementById('detailList');
+    const passcodeList = document.getElementById('passcodeList');
+    const adminGate = document.getElementById('adminGate');
+    const adminContent = document.getElementById('adminContent');
+    const adminLoginForm = document.getElementById('adminLoginForm');
+    const adminPasscode = document.getElementById('adminPasscode');
+    const adminGateHelp = document.getElementById('adminGateHelp');
+    const downloadReportButton = document.getElementById('downloadReport');
+    const downloadCsvButton = document.getElementById('downloadCsv');
+    const refreshDataButton = document.getElementById('refreshData');
+    const syncStatus = document.getElementById('syncStatus');
+    const deleteRecordForm = document.getElementById('deleteRecordForm');
+    const deleteDate = document.getElementById('deleteDate');
+    const deleteStudentNo = document.getElementById('deleteStudentNo');
+    const deleteMessage = document.getElementById('deleteMessage');
+    const ADMIN_PASS_KEY = 'morningAdminPasscode.v1';
+
+    let currentRows = [];
+    let selectedDetailStudentNo = '';
+
+    function encodePasscode(value) {
+      return btoa(unescape(encodeURIComponent(value)));
+    }
+
+    function openAdminContent() {
+      adminGate.classList.add('hidden');
+      adminContent.classList.remove('hidden');
+      refresh();
+    }
+
+    function handleAdminLogin(event) {
+      event.preventDefault();
+      const value = adminPasscode.value.trim();
+      if (value.length < 4) {
+        adminGateHelp.textContent = '비밀번호는 4글자 이상으로 정해 주세요.';
+        return;
+      }
+
+      const saved = localStorage.getItem(ADMIN_PASS_KEY);
+      const encoded = encodePasscode(value);
+      if (!saved) {
+        localStorage.setItem(ADMIN_PASS_KEY, encoded);
+        openAdminContent();
+        return;
+      }
+
+      if (saved === encoded) {
+        openAdminContent();
+        return;
+      }
+
+      adminGateHelp.textContent = '비밀번호가 맞지 않아요. 다시 확인해 주세요.';
+      adminPasscode.value = '';
+      adminPasscode.focus();
+    }
+
+    function shortText(text) {
+      const value = String(text || '미응답');
+      return value.length > 34 ? `${value.slice(0, 34)}...` : value;
+    }
+
+    function getStatusLabel(row) {
+      if (!row.record) return { text: '미작성', className: '' };
+      if (row.attention) return { text: row.complete ? '확인 필요' : '작성 중', className: row.attention ? 'watch' : '' };
+      if (row.complete) return { text: '완료', className: 'done' };
+      return { text: '작성 중', className: '' };
+    }
+
+    function renderStats(rows) {
+      const saved = rows.filter(row => row.record);
+      const completed = rows.filter(row => row.complete);
+      const attention = rows.filter(row => row.record && row.attention);
+      const noBreakfast = rows.filter(row => /먹지 않음/.test(getAnswer(row.record, 'breakfast').summary));
+      const conflicts = rows.filter(row => /^있음/.test(getAnswer(row.record, 'conflict').summary));
+
+      completedCount.textContent = `${completed.length}/${STUDENT_COUNT}`;
+      attentionCount.textContent = attention.length;
+      noBreakfastCount.textContent = noBreakfast.length;
+      conflictCount.textContent = conflicts.length;
+      savedCount.textContent = `저장 ${saved.length}명`;
+    }
+
+    function renderTable(rows) {
+      studentTableBody.textContent = '';
+
+      rows.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.className = 'student-row';
+        tr.tabIndex = 0;
+        tr.addEventListener('click', () => renderDetail(row));
+        tr.addEventListener('keydown', event => {
+          if (event.key === 'Enter' || event.key === ' ') renderDetail(row);
+        });
+
+        const status = getStatusLabel(row);
+      const cells = [
+        `${row.studentNo}번`,
+        getStudentPasscode(row.studentNo),
+        status.text,
+        getAnswer(row.record, 'sleep').summary,
+          getAnswer(row.record, 'breakfast').summary,
+          getAnswer(row.record, 'special').summary,
+          getAnswer(row.record, 'mood').summary,
+          row.record?.expression ? `${row.record.expression.label}(${row.record.expression.confidence}%)` : '없음',
+          Array.isArray(row.record?.expressionHistory) ? `${row.record.expressionHistory.length}개` : '0개',
+          getAnswer(row.record, 'conflict').summary
+        ];
+
+        cells.forEach((cell, index) => {
+          const td = document.createElement('td');
+          if (index === 2) {
+            const badge = document.createElement('span');
+            badge.className = `status-badge ${status.className}`;
+            badge.textContent = cell;
+            td.appendChild(badge);
+          } else {
+            td.textContent = index >= 3 ? shortText(cell) : cell;
+          }
+          tr.appendChild(td);
+        });
+
+        studentTableBody.appendChild(tr);
+      });
+    }
+
+    function appendTextDetail(titleText, bodyText) {
+      const item = document.createElement('div');
+      item.className = 'detail-item';
+
+      const title = document.createElement('strong');
+      title.textContent = titleText;
+
+      const body = document.createElement('p');
+      body.textContent = bodyText;
+
+      item.append(title, body);
+      detailList.appendChild(item);
+      return item;
+    }
+
+    function appendTranscriptDetail(record, titleText = '대화 전문') {
+      const transcript = document.createElement('div');
+      transcript.className = 'detail-item transcript';
+      const title = document.createElement('strong');
+      title.textContent = titleText;
+      transcript.appendChild(title);
+
+      if (record?.transcript?.length) {
+        record.transcript.forEach(item => {
+          const p = document.createElement('p');
+          const speaker = item.role === 'student' ? '학생' : '콩이';
+          const label = window.MorningApp.labels[item.key] || '대화';
+          p.textContent = `${formatDate(item.time)} / ${speaker} / ${label}: ${item.text}`;
+          transcript.appendChild(p);
+        });
+      } else {
+        const p = document.createElement('p');
+        p.textContent = '대화 기록이 없습니다.';
+        transcript.appendChild(p);
+      }
+
+      detailList.appendChild(transcript);
+      return transcript;
+    }
+
+    function appendDateHistory(records, studentNo) {
+      const historyItem = document.createElement('div');
+      historyItem.className = 'detail-item transcript';
+
+      const title = document.createElement('strong');
+      title.textContent = '날짜별 기록';
+      historyItem.appendChild(title);
+
+      if (!records.length) {
+        const empty = document.createElement('p');
+        empty.textContent = `${studentNo}번 학생의 날짜별 저장 기록이 없습니다.`;
+        historyItem.appendChild(empty);
+        detailList.appendChild(historyItem);
+        return;
+      }
+
+      records.forEach(record => {
+        const recordDate = getRecordDateKey(record) || '날짜 없음';
+        const mood = getAnswer(record, 'mood').summary || '미응답';
+        const expression = record.expression
+          ? `${record.expression.label} (${record.expression.confidence}%)`
+          : '표정 신호 없음';
+        const heading = document.createElement('p');
+        heading.textContent = `${recordDate} · 아침기분: ${mood} · 카메라: ${expression}`;
+        historyItem.appendChild(heading);
+
+        if (record.transcript?.length) {
+          record.transcript.forEach(item => {
+            const p = document.createElement('p');
+            const speaker = item.role === 'student' ? '학생' : '콩이';
+            const label = window.MorningApp.labels[item.key] || '대화';
+            p.textContent = `  ${formatDate(item.time)} / ${speaker} / ${label}: ${item.text}`;
+            historyItem.appendChild(p);
+          });
+        } else {
+          const p = document.createElement('p');
+          p.textContent = '  대화 기록이 없습니다.';
+          historyItem.appendChild(p);
+        }
+      });
+
+      detailList.appendChild(historyItem);
+    }
+
+    async function renderDetail(row) {
+      detailList.textContent = '';
+      selectedDetailStudentNo = row.studentNo;
+      detailTitle.textContent = `${row.studentNo}번 상세`;
+      detailUpdated.textContent = row.record ? formatDate(row.record.updatedAt) : '기록 없음';
+
+      if (!row.record) {
+        appendTextDetail('최신 기록 없음', '아직 이 학생의 최신 아침대화 기록이 없습니다.');
+      } else {
+        questions.forEach(question => {
+          const answer = getAnswer(row.record, question.key);
+          appendTextDetail(question.label, answer.summary || '미응답');
+        });
+
+        appendTextDetail(
+          '카메라 표정 신호',
+          row.record.expression
+            ? `${row.record.expression.label} (${row.record.expression.confidence}%) / ${formatDate(row.record.expression.updatedAt)}`
+            : '아직 카메라 표정 신호가 없습니다.'
+        );
+
+        const expressionHistoryItem = document.createElement('div');
+        expressionHistoryItem.className = 'detail-item transcript';
+        const expressionHistoryTitle = document.createElement('strong');
+        expressionHistoryTitle.textContent = '표정 변화 기록';
+        expressionHistoryItem.appendChild(expressionHistoryTitle);
+        const expressionHistory = Array.isArray(row.record.expressionHistory) ? row.record.expressionHistory : [];
+        if (expressionHistory.length) {
+          expressionHistory.forEach(item => {
+            const p = document.createElement('p');
+            p.textContent = `${formatDate(item.updatedAt)}: ${item.label} (${item.confidence}%)`;
+            expressionHistoryItem.appendChild(p);
+          });
+        } else {
+          const p = document.createElement('p');
+          p.textContent = '표정 변화 기록이 없습니다.';
+          expressionHistoryItem.appendChild(p);
+        }
+        detailList.appendChild(expressionHistoryItem);
+
+        appendTranscriptDetail(row.record);
+      }
+
+      const loading = appendTextDetail('날짜별 기록', '불러오는 중입니다...');
+      const history = await getStudentRecordHistoryFromServer(row.studentNo);
+      if (selectedDetailStudentNo !== row.studentNo) return;
+      loading.remove();
+      appendDateHistory(history, row.studentNo);
+    }
+
+    function renderPasscodeList(rows) {
+      passcodeList.textContent = rows
+        .map(row => `${row.studentNo}번 ${getStudentPasscode(row.studentNo)}`)
+        .join('  /  ');
+    }
+
+    function renderDeleteStudentOptions() {
+      if (deleteStudentNo.options.length) return;
+
+      for (let number = 1; number <= STUDENT_COUNT; number += 1) {
+        const option = document.createElement('option');
+        option.value = String(number);
+        option.textContent = `${number}번`;
+        deleteStudentNo.appendChild(option);
+      }
+    }
+
+    async function handleDeleteRecord(event) {
+      event.preventDefault();
+      const studentNo = deleteStudentNo.value;
+      const dateKey = deleteDate.value;
+
+      if (!dateKey) {
+        deleteMessage.textContent = '삭제할 날짜를 먼저 선택해 주세요.';
+        deleteDate.focus();
+        return;
+      }
+
+      await loadRecordsFromServer();
+      currentRows = getAllStudentRows();
+      const row = currentRows.find(item => item.studentNo === studentNo);
+      if (!row?.record) {
+        deleteMessage.textContent = `${studentNo}번의 저장 기록이 없습니다.`;
+        return;
+      }
+
+      const recordDate = getRecordDateKey(row.record);
+      if (recordDate !== dateKey) {
+        deleteMessage.textContent = `${studentNo}번 기록 날짜는 ${recordDate || '알 수 없음'}입니다. 선택한 날짜와 달라 삭제하지 않았습니다.`;
+        return;
+      }
+
+      const ok = window.confirm(`${dateKey} / ${studentNo}번 학생의 저장된 아침대화 기록을 삭제할까요?`);
+      if (!ok) return;
+
+      deleteMessage.textContent = '서버 기록을 삭제하고 있어요...';
+      const result = await deleteStudentRecordFromServer(studentNo, dateKey);
+      if (result.ok) {
+        deleteStudentRecord(studentNo, dateKey);
+        deleteMessage.textContent = `${dateKey} / ${studentNo}번 기록을 삭제했습니다.`;
+        refresh();
+      } else if (result.reason === 'date-mismatch') {
+        deleteMessage.textContent = `${studentNo}번 기록 날짜는 ${result.recordDate || '알 수 없음'}입니다. 선택한 날짜와 달라 삭제하지 않았습니다.`;
+      } else if (result.reason === 'server-error' || result.reason === 'server-unavailable') {
+        const localResult = deleteStudentRecord(studentNo, dateKey);
+        if (localResult.ok) {
+          deleteMessage.textContent = '서버 연결 없이 이 브라우저의 로컬 기록을 삭제했습니다. 여러 기기 연동은 서버 실행이 필요합니다.';
+          refresh();
+        } else {
+          deleteMessage.textContent = '서버와 연결되지 않아 공유 기록을 삭제하지 못했습니다. 서버를 실행하고 다시 삭제해 주세요.';
+        }
+      } else {
+        deleteMessage.textContent = `${studentNo}번의 저장 기록이 없습니다.`;
+      }
+    }
+
+    function renderSyncStatus() {
+      const status = getRecordsSyncStatus();
+      if (status.ok && status.source === 'server') {
+        syncStatus.textContent = '서버 저장 연결됨';
+        return;
+      }
+      syncStatus.textContent = '서버 연결 안 됨: 이 브라우저의 오늘 기록만 표시됩니다.';
+    }
+
+    async function refresh() {
+      currentRows = await getAllStudentRowsAsync();
+      renderSyncStatus();
+      renderStats(currentRows);
+      renderTable(currentRows);
+      renderPasscodeList(currentRows);
+      const firstAttention = currentRows.find(row => row.record && needsAttention(row.record));
+      const firstSaved = currentRows.find(row => row.record);
+      renderDetail(firstAttention || firstSaved || currentRows[0]);
+    }
+
+    downloadReportButton.addEventListener('click', () => {
+      const stamp = new Date().toISOString().slice(0, 10);
+      downloadText(`아침대화_관리자요약_${stamp}.txt`, buildOverallReport());
+    });
+
+    downloadCsvButton.addEventListener('click', () => {
+      const stamp = new Date().toISOString().slice(0, 10);
+      downloadText(`아침대화_학생별결과_${stamp}.csv`, `\ufeff${buildCsv()}`, 'text/csv;charset=utf-8');
+    });
+
+    refreshDataButton.addEventListener('click', refresh);
+    window.addEventListener('storage', refresh);
+    adminLoginForm.addEventListener('submit', handleAdminLogin);
+    deleteRecordForm.addEventListener('submit', handleDeleteRecord);
+    deleteDate.value = localDateKey();
+    renderDeleteStudentOptions();
+
+    if (localStorage.getItem(ADMIN_PASS_KEY)) {
+      adminGateHelp.textContent = '관리자 비밀번호를 입력해 주세요.';
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,1604 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>아침대화 학생창</title>
+  <link rel="stylesheet" href="morning-style.css" />
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <div>
+          <h1>아침대화 학생창</h1>
+          <p class="subtitle">내 번호를 고르고 콩이와 말로 대화해요.</p>
+        </div>
+      </div>
+      <nav class="nav-actions" aria-label="페이지 이동">
+        <span class="pill" id="todayLabel">오늘 날짜</span>
+        <a class="btn secondary" href="index.html">처음으로</a>
+      </nav>
+    </header>
+
+    <section class="layout">
+      <aside class="card">
+        <div class="card-head">
+          <h2 class="card-title">학생 로그인</h2>
+          <span class="pill" id="selectedStudentLabel">번호와 비밀번호</span>
+        </div>
+        <div class="card-body" id="studentPickerBody">
+          <form class="login-form" id="studentLoginForm">
+            <label>
+              번호
+              <input class="text-input" id="loginStudentNo" type="number" min="1" max="24" inputmode="numeric" placeholder="예: 7" />
+            </label>
+            <label>
+              비밀번호
+              <input class="text-input" id="loginPasscode" type="password" inputmode="numeric" maxlength="3" placeholder="숫자 3자리" />
+            </label>
+            <button class="btn primary" type="submit">들어가기</button>
+          </form>
+          <p class="privacy-note" id="loginMessage">자기 번호와 선생님이 알려준 숫자 3자리 비밀번호를 입력해 주세요.</p>
+        </div>
+
+        <div class="buddy-stage">
+          <div class="buddy-shadow" aria-hidden="true"></div>
+          <div class="buddy" id="buddy" data-mood="neutral" aria-label="대화 캐릭터 콩이">
+            <div class="buddy-body"></div>
+            <div class="buddy-ear left"></div>
+            <div class="buddy-ear right"></div>
+            <div class="buddy-head">
+              <div class="buddy-face">
+                <div class="eye left"></div>
+                <div class="eye right"></div>
+                <div class="blush left"></div>
+                <div class="blush right"></div>
+                <div class="mouth"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="camera-panel">
+          <div class="camera-frame" id="cameraFrame">
+            <video id="cameraVideo" playsinline muted></video>
+            <canvas id="cameraOverlay" aria-hidden="true"></canvas>
+            <div class="camera-placeholder" id="cameraPlaceholder">로그인하면 카메라로 표정 신호를 조심스럽게 살펴볼게요.</div>
+          </div>
+          <div class="camera-actions">
+            <button class="btn secondary" id="startCamera" type="button">카메라 시작</button>
+            <button class="btn secondary" id="stopCamera" type="button">카메라 끄기</button>
+          </div>
+          <p class="privacy-note" id="cameraStatus">카메라 화면은 저장하지 않아요.</p>
+        </div>
+
+        <div class="card-body">
+          <h2 class="card-title">오늘 기록</h2>
+          <div class="memory-card" id="memoryCard">
+            <strong>이전 기록</strong>
+            <p>번호를 선택하면 저장된 대화와 아침기분을 볼 수 있어요.</p>
+          </div>
+          <div class="progress-list" id="progressList"></div>
+        </div>
+      </aside>
+
+      <section class="card conversation" aria-label="콩이와 아침 대화">
+        <div class="card-head">
+          <h2 class="card-title" id="conversationTitle">콩이와 대화</h2>
+          <span class="pill" id="voiceStatus">번호 선택 대기</span>
+        </div>
+
+        <div class="chat-log" id="chatLog" aria-live="polite"></div>
+
+        <div class="controls">
+          <div class="live-transcript" id="liveTranscript" aria-live="polite">번호와 비밀번호를 먼저 입력해 주세요.</div>
+          <div class="control-row">
+            <button class="btn secondary" id="repeatQuestion" type="button">질문 다시 듣기</button>
+            <button class="btn primary" id="startVoice" type="button">지금 말하기</button>
+            <button class="btn warning" id="stopVoice" type="button">듣기 멈춤</button>
+          </div>
+          <form class="fallback-form" id="fallbackForm">
+            <input class="text-input" id="fallbackInput" type="text" autocomplete="off" placeholder="마이크가 안 될 때만 짧게 기록해요" />
+            <button class="btn primary" type="submit">기록</button>
+          </form>
+          <div class="control-row">
+            <button class="btn secondary" id="showFallback" type="button">직접 기록 열기</button>
+            <button class="btn secondary" id="downloadMine" type="button">내 기록 다운로드</button>
+            <button class="btn secondary" id="continueQuestion" type="button">다음 질문 확인</button>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="morning-shared.js?v=20260615-sync-fallback"></script>
+  <script>
+    const {
+      STUDENT_COUNT,
+      questions,
+      createRecord,
+      getStudentRecord,
+      loadRecordsFromServer,
+      saveStudentRecord,
+      verifyStudentPasscode,
+      summarizeAnswer,
+      getAnswer,
+      answerStatus,
+      isComplete,
+      buildStudentSummary,
+      downloadText,
+      formatDate,
+      localDateKey,
+      getRecordDateKey,
+      pruneLocalRecordsForToday,
+      STORAGE_KEY
+    } = window.MorningApp;
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const MEDIAPIPE_TASKS_VISION = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.mjs';
+    const MEDIAPIPE_WASM_ROOT = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm';
+    const FACE_LANDMARKER_MODEL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task';
+    const FACE_API_SCRIPT = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js';
+    const FACE_API_MODELS = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
+    const expressionInfo = {
+      happy: { label: '밝음', mood: 'happy', message: '표정이 조금 밝아 보여. 좋은 마음이 있다면 나중에 더 들려줘도 좋아.' },
+      softSmile: { label: '은은한 미소', mood: 'happy', message: '살짝 웃는 표정이 보여. 괜찮은 기분이라면 그 마음도 기억해둘게.' },
+      neutral: { label: '차분함', mood: 'neutral', message: '표정이 차분해 보여. 지금 마음을 천천히 말해줘도 괜찮아.' },
+      calm: { label: '편안함', mood: 'neutral', message: '표정이 편안해 보여. 오늘 아침 마음을 천천히 들려줘.' },
+      focused: { label: '집중함', mood: 'neutral', message: '조금 집중한 표정처럼 보여. 생각나는 말을 천천히 골라도 괜찮아.' },
+      tired: { label: '피곤함', mood: 'tired', message: '눈이 조금 피곤해 보여. 오늘 몸이 무겁다면 편하게 말해줘.' },
+      sleepy: { label: '졸림', mood: 'tired', message: '조금 졸린 표정처럼 보여. 잠이 부족했는지 편하게 말해줘.' },
+      sad: { label: '속상함', mood: 'sad', message: '표정이 조금 속상해 보여. 혹시 마음에 걸리는 일이 있으면 편하게 말해줘.' },
+      lowMood: { label: '가라앉음', mood: 'sad', message: '마음이 조금 가라앉은 표정처럼 보여. 말하고 싶은 만큼만 이야기해도 괜찮아.' },
+      angry: { label: '답답함', mood: 'sad', message: '표정이 조금 답답해 보여. 무슨 일이 있었는지 천천히 말해도 괜찮아.' },
+      tense: { label: '긴장됨', mood: 'worried', message: '조금 긴장한 표정처럼 보여. 급하게 말하지 않아도 괜찮아.' },
+      worried: { label: '걱정됨', mood: 'worried', message: '조금 걱정되는 표정처럼 보여. 마음에 걸리는 일이 있으면 말해줘.' },
+      fearful: { label: '불안함', mood: 'worried', message: '조금 불안한 표정처럼 보여. 마음에 걸리는 일이 있으면 말해줘.' },
+      surprised: { label: '놀람', mood: 'worried', message: '조금 놀란 표정처럼 보여. 갑자기 있었던 일이 있는지 궁금해.' },
+      alert: { label: '놀란 기색', mood: 'worried', message: '살짝 놀란 표정이 보여. 갑자기 떠오른 일이 있으면 들려줘.' },
+      uneasy: { label: '어색함', mood: 'worried', message: '조금 어색하거나 망설이는 표정처럼 보여. 천천히 해도 괜찮아.' },
+      disgusted: { label: '불편함', mood: 'sad', message: '무언가 불편한 표정처럼 보여. 불편했던 일이 있으면 이야기해줘.' },
+      uncomfortable: { label: '불편함', mood: 'sad', message: '조금 불편한 표정처럼 보여. 불편했던 일이 있으면 편하게 말해줘.' }
+    };
+    const todayLabel = document.getElementById('todayLabel');
+    const studentPickerBody = document.getElementById('studentPickerBody');
+    const studentLoginForm = document.getElementById('studentLoginForm');
+    const loginStudentNo = document.getElementById('loginStudentNo');
+    const loginPasscode = document.getElementById('loginPasscode');
+    const loginMessage = document.getElementById('loginMessage');
+    const selectedStudentLabel = document.getElementById('selectedStudentLabel');
+    const progressList = document.getElementById('progressList');
+    const memoryCard = document.getElementById('memoryCard');
+    const chatLog = document.getElementById('chatLog');
+    const voiceStatus = document.getElementById('voiceStatus');
+    const liveTranscript = document.getElementById('liveTranscript');
+    const conversationTitle = document.getElementById('conversationTitle');
+    const repeatQuestionButton = document.getElementById('repeatQuestion');
+    const startVoiceButton = document.getElementById('startVoice');
+    const stopVoiceButton = document.getElementById('stopVoice');
+    const showFallbackButton = document.getElementById('showFallback');
+    const fallbackForm = document.getElementById('fallbackForm');
+    const fallbackInput = document.getElementById('fallbackInput');
+    const continueQuestionButton = document.getElementById('continueQuestion');
+    const downloadMineButton = document.getElementById('downloadMine');
+    const buddy = document.getElementById('buddy');
+    const cameraVideo = document.getElementById('cameraVideo');
+    const cameraOverlay = document.getElementById('cameraOverlay');
+    const cameraFrame = document.getElementById('cameraFrame');
+    const cameraStatus = document.getElementById('cameraStatus');
+    const startCameraButton = document.getElementById('startCamera');
+    const stopCameraButton = document.getElementById('stopCamera');
+
+    let selectedStudentNo = '';
+    let record = null;
+    let activeDateKey = localDateKey();
+    let currentQuestionIndex = 0;
+    let recognition = null;
+    let recognitionActive = false;
+    let recognitionStarting = false;
+    let recognitionLastError = '';
+    let recognitionStartToken = 0;
+    let pendingSpeech = '';
+    let interimSpeech = '';
+    let speechSilenceTimer = 0;
+    let autoListenTimer = 0;
+    let botSpeechActive = false;
+    let lastBotSpeechText = '';
+    let lastBotSpeechEndedAt = 0;
+    let cameraStream = null;
+    let faceLandmarker = null;
+    let expressionEngine = '';
+    let expressionModelReady = false;
+    let expressionModelLoading = false;
+    let expressionLoop = 0;
+    let lastExpressionMood = '';
+    let lastExpressionMessageAt = 0;
+    let lastSavedExpressionMood = '';
+    let lastExpressionSaveAt = 0;
+    let expressionGreetingDone = false;
+    let expressionFeedbackCount = 0;
+    let microphonePermissionPrepared = false;
+    let feedbackPending = false;
+    let kongiVoice = null;
+
+    function formatToday() {
+      return new Date().toLocaleDateString('ko-KR', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long'
+      });
+    }
+
+    function isTodayRecord(candidate) {
+      return Boolean(candidate) && getRecordDateKey(candidate) === localDateKey();
+    }
+
+    async function getTodayStudentRecord(studentNo) {
+      const records = await loadRecordsFromServer();
+      const saved = records
+        ? records[String(studentNo)] || null
+        : getStudentRecord(studentNo);
+      return isTodayRecord(saved) ? saved : null;
+    }
+
+    function resetSelectedStudentConversation(message = '') {
+      if (!selectedStudentNo) return;
+
+      window.clearTimeout(autoListenTimer);
+      autoListenTimer = 0;
+      clearSpeechSilenceTimer();
+      pendingSpeech = '';
+      interimSpeech = '';
+      feedbackPending = false;
+      botSpeechActive = false;
+      const activeRecognition = recognition;
+      recognitionStartToken += 1;
+      recognition = null;
+      if (activeRecognition && (recognitionActive || recognitionStarting)) {
+        try {
+          if (typeof activeRecognition.abort === 'function') activeRecognition.abort();
+          else activeRecognition.stop();
+        } catch (error) {
+          console.warn(error);
+        }
+      }
+      recognitionActive = false;
+      recognitionStarting = false;
+      recognitionLastError = '';
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+
+      record = createRecord(selectedStudentNo);
+      currentQuestionIndex = 0;
+      expressionGreetingDone = false;
+      expressionFeedbackCount = 0;
+      lastExpressionMood = '';
+      lastSavedExpressionMood = '';
+      lastExpressionSaveAt = 0;
+      buddy.dataset.mood = 'neutral';
+      fallbackInput.value = '';
+      conversationTitle.textContent = `${selectedStudentNo}번과 대화`;
+
+      renderStudentGrid();
+      renderTranscript();
+      renderProgress();
+      renderMemoryCard();
+      updateStudentPrivacyView();
+      updateControls();
+      if (message) liveTranscript.textContent = message;
+    }
+
+    function syncSelectedStudentRecordFromStorage() {
+      syncSelectedStudentRecordFromServer();
+    }
+
+    async function syncSelectedStudentRecordFromServer() {
+      if (!selectedStudentNo) return;
+      if (feedbackPending || recognitionActive || recognitionStarting) return;
+
+      const records = await loadRecordsFromServer();
+      const saved = records ? records[selectedStudentNo] || null : getStudentRecord(selectedStudentNo);
+      if (!isTodayRecord(saved)) {
+        resetSelectedStudentConversation('선생님이 기록을 삭제했거나 날짜가 바뀌어 대화 내용을 비웠어요. 다음 질문 확인을 누르면 새로 시작해요.');
+        return;
+      }
+
+      record = saved;
+      currentQuestionIndex = findNextQuestionIndex();
+      feedbackPending = false;
+      expressionGreetingDone = Boolean(record.expressionGreetingDone);
+      expressionFeedbackCount = Number(record.expressionFeedbackCount || (record.expressionGreetingDone ? 1 : 0));
+      lastExpressionMood = record.expression?.mood || '';
+      lastSavedExpressionMood = record.expression?.mood || '';
+
+      renderTranscript();
+      renderProgress();
+      renderMemoryCard();
+      updateStudentPrivacyView();
+      updateControls();
+    }
+
+    function checkDateBoundary() {
+      const nextDateKey = localDateKey();
+      if (nextDateKey === activeDateKey) return;
+
+      activeDateKey = nextDateKey;
+      todayLabel.textContent = formatToday();
+      resetSelectedStudentConversation('날짜가 바뀌어 오늘 대화를 새로 시작해요. 다음 질문 확인을 눌러 주세요.');
+    }
+
+    function chooseKongiVoice() {
+      if (!('speechSynthesis' in window)) return null;
+
+      const voices = window.speechSynthesis.getVoices();
+      const koreanVoices = voices.filter(voice => /^ko[-_]?KR$/i.test(voice.lang) || /^ko\b/i.test(voice.lang));
+      const childLikeName = /(child|kid|girl|young|female|yuna|heami|sunhi|sora|유나|혜미|선희|소라)/i;
+      return koreanVoices.find(voice => childLikeName.test(voice.name))
+        || koreanVoices[0]
+        || voices.find(voice => childLikeName.test(voice.name))
+        || null;
+    }
+
+    function speak(text, onEnd) {
+      lastBotSpeechText = String(text || '');
+      botSpeechActive = true;
+      if (!('speechSynthesis' in window)) {
+        botSpeechActive = false;
+        lastBotSpeechEndedAt = Date.now();
+        if (typeof onEnd === 'function') window.setTimeout(onEnd, 250);
+        return;
+      }
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'ko-KR';
+      kongiVoice = kongiVoice || chooseKongiVoice();
+      if (kongiVoice) utterance.voice = kongiVoice;
+      utterance.rate = 1.06;
+      utterance.pitch = 1.45;
+      utterance.volume = 1;
+      utterance.onend = () => {
+        botSpeechActive = false;
+        lastBotSpeechEndedAt = Date.now();
+        if (typeof onEnd === 'function') onEnd();
+      };
+      utterance.onerror = () => {
+        botSpeechActive = false;
+        lastBotSpeechEndedAt = Date.now();
+        if (typeof onEnd === 'function') onEnd();
+      };
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function renderStudentGrid() {}
+
+    function findNextQuestionIndex() {
+      const nextIndex = questions.findIndex(question => !record.answers?.[question.key]?.raw);
+      return nextIndex >= 0 ? nextIndex : questions.length;
+    }
+
+    function renderProgress() {
+      progressList.textContent = '';
+
+      questions.forEach(question => {
+        const answer = getAnswer(record, question.key);
+        const item = document.createElement('div');
+        item.className = 'progress-item';
+
+        const label = document.createElement('strong');
+        label.textContent = question.label;
+
+        const value = document.createElement('span');
+        value.textContent = answer.summary || '아직 대답 전';
+
+        item.append(label, value);
+        progressList.appendChild(item);
+      });
+    }
+
+    function renderMemoryCard() {
+      if (!selectedStudentNo || !record) {
+        memoryCard.innerHTML = '<strong>이전 기록</strong><p>번호를 선택하면 저장된 대화와 아침기분을 볼 수 있어요.</p>';
+        return;
+      }
+
+      const mood = getAnswer(record, 'mood').summary || '아직 기록 없음';
+      const expression = record.expression
+        ? `${record.expression.label} (${record.expression.confidence}%)`
+        : '아직 카메라 표정 신호 없음';
+      const expressionHistory = Array.isArray(record.expressionHistory) ? record.expressionHistory : [];
+      const recentExpression = expressionHistory.slice(-3).map(item =>
+        `${formatDate(item.updatedAt)} ${item.label}(${item.confidence}%)`
+      ).join(' / ') || '아직 변화 기록 없음';
+      const lastStudentMessage = [...(record.transcript || [])]
+        .reverse()
+        .find(item => item.role === 'student')?.text || '아직 학생 대화 기록이 없어요.';
+      const savedAt = record.updatedAt ? formatDate(record.updatedAt) : '저장 전';
+
+      memoryCard.innerHTML = '';
+      const title = document.createElement('strong');
+      title.textContent = `${selectedStudentNo}번의 저장된 기록`;
+
+      const date = document.createElement('p');
+      date.textContent = `오늘 날짜: ${formatToday()}`;
+
+      const moodText = document.createElement('p');
+      moodText.textContent = `아침기분: ${mood}`;
+
+      const expressionText = document.createElement('p');
+      expressionText.textContent = `카메라 표정 신호: ${expression}`;
+
+      const expressionHistoryText = document.createElement('p');
+      expressionHistoryText.textContent = `최근 표정 변화: ${recentExpression}`;
+
+      const last = document.createElement('p');
+      last.textContent = `마지막 대화: ${lastStudentMessage}`;
+
+      const updated = document.createElement('p');
+      updated.textContent = `마지막 저장: ${savedAt}`;
+
+      memoryCard.append(title, date, moodText, expressionText, expressionHistoryText, last, updated);
+    }
+
+    function updateStudentPrivacyView() {
+      studentPickerBody.classList.toggle('hidden', Boolean(selectedStudentNo));
+      selectedStudentLabel.textContent = selectedStudentNo
+        ? `${selectedStudentNo}번 인증됨`
+        : '번호와 비밀번호';
+    }
+
+    function normalizeStudentNo(value) {
+      const number = Number(value);
+      if (!Number.isInteger(number) || number < 1 || number > STUDENT_COUNT) return '';
+      return String(number);
+    }
+
+    function handleStudentLogin(event) {
+      event.preventDefault();
+      const studentNo = normalizeStudentNo(loginStudentNo.value);
+      const passcode = loginPasscode.value.trim();
+
+      if (!studentNo) {
+        loginMessage.textContent = `번호는 1번부터 ${STUDENT_COUNT}번까지 입력해 주세요.`;
+        loginStudentNo.focus();
+        return;
+      }
+
+      if (!/^\d{3}$/.test(passcode)) {
+        loginMessage.textContent = '비밀번호는 숫자 3자리로 입력해 주세요.';
+        loginPasscode.focus();
+        return;
+      }
+
+      if (!verifyStudentPasscode(studentNo, passcode)) {
+        loginMessage.textContent = '번호 또는 비밀번호가 맞지 않아요. 선생님께 확인해 주세요.';
+        loginPasscode.value = '';
+        loginPasscode.focus();
+        return;
+      }
+
+      loginMessage.textContent = '확인됐어요. 내 아침대화로 들어갑니다.';
+      selectStudent(studentNo);
+    }
+
+    function renderTranscript() {
+      chatLog.textContent = '';
+      const transcript = record?.transcript || [];
+
+      if (!selectedStudentNo) {
+        addVisualMessage('bot', '안녕, 나는 마음 친구 콩이야. 먼저 자기 번호와 숫자 3자리 비밀번호를 입력해줘.');
+        return;
+      }
+
+      if (!transcript.length) {
+        addVisualMessage('bot', `${selectedStudentNo}번 반가워. 특별한 일이 없으면 없었다고 말해도 괜찮아. 이제 아침 이야기를 천천히 들어볼게.`);
+        return;
+      }
+
+      transcript.forEach(item => {
+        addVisualMessage(item.role === 'student' ? 'user' : 'bot', item.text);
+      });
+    }
+
+    function addVisualMessage(role, text) {
+      const message = document.createElement('div');
+      message.className = `message ${role === 'student' ? 'user' : role}`;
+
+      if (role !== 'user' && role !== 'student') {
+        const avatar = document.createElement('div');
+        avatar.className = 'avatar';
+        avatar.setAttribute('aria-hidden', 'true');
+        message.appendChild(avatar);
+      }
+
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      bubble.textContent = text;
+      message.appendChild(bubble);
+      chatLog.appendChild(message);
+      chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    function addTranscript(role, text, key = '') {
+      if (!record) return;
+      record.transcript.push({
+        role,
+        text,
+        key,
+        time: window.MorningApp.nowIso()
+      });
+      record = saveStudentRecord(record);
+      addVisualMessage(role === 'student' ? 'user' : 'bot', text);
+    }
+
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        const existing = document.querySelector(`script[src="${src}"]`);
+        if (existing) {
+          if (window.faceapi) resolve();
+          existing.addEventListener('load', resolve, { once: true });
+          existing.addEventListener('error', reject, { once: true });
+          return;
+        }
+
+        const script = document.createElement('script');
+        script.src = src;
+        script.async = true;
+        script.onload = resolve;
+        script.onerror = () => reject(new Error('표정 분석 모델을 불러오지 못했어요.'));
+        document.head.appendChild(script);
+      });
+    }
+
+    async function prepareMediaPipeModel() {
+      const vision = await import(MEDIAPIPE_TASKS_VISION);
+      const fileset = await vision.FilesetResolver.forVisionTasks(MEDIAPIPE_WASM_ROOT);
+      faceLandmarker = await vision.FaceLandmarker.createFromOptions(fileset, {
+        baseOptions: {
+          modelAssetPath: FACE_LANDMARKER_MODEL,
+          delegate: 'CPU'
+        },
+        runningMode: 'VIDEO',
+        numFaces: 1,
+        outputFaceBlendshapes: true,
+        minFaceDetectionConfidence: 0.35,
+        minFacePresenceConfidence: 0.35,
+        minTrackingConfidence: 0.35
+      });
+    }
+
+    async function prepareFaceApiModel() {
+      await loadScript(FACE_API_SCRIPT);
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(FACE_API_MODELS),
+        faceapi.nets.faceExpressionNet.loadFromUri(FACE_API_MODELS)
+      ]);
+    }
+
+    async function prepareExpressionModel() {
+      if (expressionModelReady || expressionModelLoading) return;
+      expressionModelLoading = true;
+      cameraStatus.textContent = '더 정교한 표정 분석 모델을 준비하고 있어요.';
+
+      try {
+        await prepareMediaPipeModel();
+        expressionEngine = 'mediapipe';
+        expressionModelReady = true;
+        cameraStatus.textContent = 'MediaPipe로 얼굴 움직임을 살피는 중이에요.';
+      } catch (mediaPipeError) {
+        console.warn(mediaPipeError);
+        try {
+          cameraStatus.textContent = '기본 표정 분석 모델로 다시 준비하고 있어요.';
+          await prepareFaceApiModel();
+          expressionEngine = 'faceapi';
+          expressionModelReady = true;
+          cameraStatus.textContent = '기본 표정 신호를 살피는 중이에요.';
+        } catch (faceApiError) {
+          console.warn(faceApiError);
+          cameraStatus.textContent = '표정 모델을 불러오지 못했어요. 대화로 마음을 들을게요.';
+        }
+      } finally {
+        expressionModelLoading = false;
+      }
+    }
+
+    function getCameraVideoConstraints() {
+      return {
+        width: { ideal: 640 },
+        height: { ideal: 420 },
+        facingMode: 'user'
+      };
+    }
+
+    function detachAudioTracks(stream) {
+      const audioTracks = stream?.getAudioTracks?.() || [];
+      if (audioTracks.length) microphonePermissionPrepared = true;
+      audioTracks.forEach(track => track.stop());
+    }
+
+    function getMicrophoneAudioConstraints() {
+      return { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+    }
+
+    function isMicrophonePermissionError(error) {
+      const name = error?.name || '';
+      return name === 'NotAllowedError' || name === 'PermissionDeniedError' || name === 'SecurityError';
+    }
+
+    function getSpeechErrorMessage(errorCode) {
+      if (errorCode === 'not-allowed' || errorCode === 'service-not-allowed') {
+        return '마이크 권한이 필요해요. 주소창 왼쪽의 권한 설정에서 마이크를 허용한 뒤 다시 눌러 주세요.';
+      }
+      if (errorCode === 'audio-capture') {
+        return '마이크 장치를 찾지 못했어요. 마이크가 연결되어 있는지 확인하고 다시 눌러 주세요.';
+      }
+      if (errorCode === 'no-speech') {
+        return '소리가 들리지 않았어요. 마이크가 켜져 있는지 확인하고 다시 말해 주세요.';
+      }
+      return '마이크가 바로 켜지지 않았어요. 다시 눌러 말하거나 직접 기록을 사용할 수 있어요.';
+    }
+
+    async function requestCameraStream(withMicrophone = false) {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: getCameraVideoConstraints(),
+        audio: withMicrophone
+          ? getMicrophoneAudioConstraints()
+          : false
+      });
+      detachAudioTracks(stream);
+      return new MediaStream(stream.getVideoTracks());
+    }
+
+    async function prepareMicrophonePermission() {
+      if (microphonePermissionPrepared || !navigator.mediaDevices?.getUserMedia) return true;
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: false,
+          audio: getMicrophoneAudioConstraints()
+        });
+        detachAudioTracks(stream);
+        return true;
+      } catch (error) {
+        console.warn(error);
+        if (isMicrophonePermissionError(error)) {
+          const permissionState = await getMediaPermissionState('microphone');
+          if (permissionState === 'denied') throw error;
+        }
+        return false;
+      }
+    }
+
+    async function getMediaPermissionState(name) {
+      if (!navigator.permissions?.query) return '';
+      try {
+        const status = await navigator.permissions.query({ name });
+        return status?.state || '';
+      } catch (error) {
+        return '';
+      }
+    }
+
+    async function startCamera(options = {}) {
+      if (!selectedStudentNo) {
+        cameraStatus.textContent = '로그인 후 카메라를 사용할 수 있어요.';
+        return;
+      }
+      if (cameraStream) return;
+      if (!navigator.mediaDevices?.getUserMedia) {
+        cameraStatus.textContent = '이 브라우저는 카메라를 지원하지 않아요.';
+        return;
+      }
+
+      const autoStart = options.auto === true;
+      const cameraPermission = await getMediaPermissionState('camera');
+      if (autoStart && cameraPermission !== 'granted') {
+        cameraStatus.textContent = cameraPermission === 'denied'
+          ? '카메라가 차단되어 있어요. 주소창 왼쪽 권한 설정에서 카메라를 허용해 주세요.'
+          : '카메라 권한을 아직 허용하지 않았어요. 카메라 시작을 눌러 한 번 허용해 주세요.';
+        return;
+      }
+
+      const microphonePermission = await getMediaPermissionState('microphone');
+      const withMicrophone = options.withMicrophone === true
+        && !microphonePermissionPrepared
+        && (!autoStart || microphonePermission === 'granted');
+
+      try {
+        cameraStatus.textContent = withMicrophone
+          ? '카메라와 마이크 권한을 한 번에 준비하고 있어요.'
+          : '카메라 권한을 준비하고 있어요.';
+        cameraStream = await requestCameraStream(withMicrophone);
+        cameraVideo.srcObject = cameraStream;
+        await cameraVideo.play();
+        cameraFrame.classList.add('active');
+        cameraStatus.textContent = microphonePermissionPrepared
+          ? '카메라가 켜졌고 마이크 권한도 준비됐어요.'
+          : '카메라가 켜졌어요. 표정 신호를 조심스럽게 볼게요.';
+        await prepareExpressionModel();
+        if (expressionModelReady) runExpressionLoop();
+      } catch (error) {
+        console.warn(error);
+        if (withMicrophone) {
+          try {
+            cameraStatus.textContent = '마이크 권한은 따로 확인하고, 카메라를 먼저 켤게요.';
+            cameraStream = await requestCameraStream(false);
+            cameraVideo.srcObject = cameraStream;
+            await cameraVideo.play();
+            cameraFrame.classList.add('active');
+            cameraStatus.textContent = '카메라가 켜졌어요. 마이크 권한은 말하기 전에 한 번 더 확인될 수 있어요.';
+            await prepareExpressionModel();
+            if (expressionModelReady) runExpressionLoop();
+            return;
+          } catch (cameraError) {
+            console.warn(cameraError);
+          }
+        }
+        cameraStatus.textContent = '카메라 권한이 필요해요. 브라우저 권한을 확인해 주세요.';
+      }
+    }
+
+    function stopCamera() {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+      }
+      cancelAnimationFrame(expressionLoop);
+      expressionLoop = 0;
+      cameraVideo.srcObject = null;
+      cameraFrame.classList.remove('active');
+      clearExpressionOverlay();
+      cameraStatus.textContent = '카메라가 꺼졌어요.';
+    }
+
+    function clearExpressionOverlay() {
+      const ctx = cameraOverlay.getContext('2d');
+      ctx.clearRect(0, 0, cameraOverlay.width, cameraOverlay.height);
+    }
+
+    function sizeExpressionOverlay() {
+      const rect = cameraFrame.getBoundingClientRect();
+      const ratio = window.devicePixelRatio || 1;
+      const width = Math.max(1, Math.round(rect.width * ratio));
+      const height = Math.max(1, Math.round(rect.height * ratio));
+
+      if (cameraOverlay.width !== width || cameraOverlay.height !== height) {
+        cameraOverlay.width = width;
+        cameraOverlay.height = height;
+      }
+
+      const ctx = cameraOverlay.getContext('2d');
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      return { ctx, width: rect.width, height: rect.height };
+    }
+
+    function getTopExpression(expressions) {
+      return Object.entries(expressions || {})
+        .sort((a, b) => b[1] - a[1])[0] || ['neutral', 0];
+    }
+
+    function inferExpressionFromFaceApi(expressions = {}) {
+      const happy = expressions.happy || 0;
+      const neutral = expressions.neutral || 0;
+      const sad = expressions.sad || 0;
+      const angry = expressions.angry || 0;
+      const fearful = expressions.fearful || 0;
+      const surprised = expressions.surprised || 0;
+      const disgusted = expressions.disgusted || 0;
+      const [top, score] = getTopExpression(expressions);
+
+      if (top === 'happy' && score < 0.55) return ['softSmile', clampScore(score + 0.12)];
+      if (top === 'sad' && score < 0.45) return ['lowMood', clampScore(score + 0.12)];
+      if (top === 'angry' && score < 0.45) return ['tense', clampScore(score + 0.12)];
+      if (top === 'fearful' || fearful > 0.22) return ['worried', clampScore(Math.max(score, fearful) + 0.08)];
+      if (top === 'disgusted' || disgusted > 0.22) return ['uncomfortable', clampScore(Math.max(score, disgusted) + 0.08)];
+      if (top === 'surprised' && score < 0.42) return ['alert', clampScore(score + 0.08)];
+      if (top === 'neutral' && happy > 0.16) return ['softSmile', clampScore(happy + 0.2)];
+      if (top === 'neutral' && Math.max(sad, angry, fearful, surprised, disgusted) > 0.14) {
+        return ['focused', clampScore(Math.max(sad, angry, fearful, surprised, disgusted) + 0.18)];
+      }
+      if (top === 'neutral' || neutral > 0.62) return ['calm', clampScore(Math.max(neutral, 0.42))];
+      return [top, clampScore(score)];
+    }
+
+    function getBlendshapeMap(categories = []) {
+      return categories.reduce((result, item) => {
+        result[item.categoryName] = item.score || 0;
+        return result;
+      }, {});
+    }
+
+    function blend(map, name) {
+      return map[name] || 0;
+    }
+
+    function avg(...values) {
+      return values.reduce((sum, value) => sum + value, 0) / values.length;
+    }
+
+    function clampScore(value) {
+      return Math.max(0.3, Math.min(0.96, value));
+    }
+
+    function inferExpressionFromBlendshapes(categories = []) {
+      const map = getBlendshapeMap(categories);
+      const smile = avg(blend(map, 'mouthSmileLeft'), blend(map, 'mouthSmileRight'));
+      const dimple = avg(blend(map, 'mouthDimpleLeft'), blend(map, 'mouthDimpleRight'));
+      const frown = avg(blend(map, 'mouthFrownLeft'), blend(map, 'mouthFrownRight'));
+      const browDown = avg(blend(map, 'browDownLeft'), blend(map, 'browDownRight'));
+      const browInnerUp = blend(map, 'browInnerUp');
+      const eyeWide = avg(blend(map, 'eyeWideLeft'), blend(map, 'eyeWideRight'));
+      const eyeSquint = avg(blend(map, 'eyeSquintLeft'), blend(map, 'eyeSquintRight'));
+      const eyeBlink = avg(blend(map, 'eyeBlinkLeft'), blend(map, 'eyeBlinkRight'));
+      const jawOpen = blend(map, 'jawOpen');
+      const mouthPress = avg(blend(map, 'mouthPressLeft'), blend(map, 'mouthPressRight'));
+      const mouthPucker = blend(map, 'mouthPucker');
+      const mouthRoll = avg(blend(map, 'mouthRollLower'), blend(map, 'mouthRollUpper'));
+      const mouthShrugLower = blend(map, 'mouthShrugLower');
+      const mouthShrugUpper = blend(map, 'mouthShrugUpper');
+      const mouthStretch = avg(blend(map, 'mouthStretchLeft'), blend(map, 'mouthStretchRight'));
+      const cheekSquint = avg(blend(map, 'cheekSquintLeft'), blend(map, 'cheekSquintRight'));
+      const noseSneer = avg(blend(map, 'noseSneerLeft'), blend(map, 'noseSneerRight'));
+      const mouthActivity = Math.max(smile, frown, jawOpen, mouthPress, mouthPucker, mouthStretch, mouthRoll);
+
+      const candidates = [
+        ['happy', smile * 1.15 + cheekSquint * 0.6 + dimple * 0.25 - frown * 0.45],
+        ['softSmile', smile * 0.85 + dimple * 0.35 + cheekSquint * 0.2 - frown * 0.3],
+        ['sleepy', eyeBlink * 0.95 + mouthShrugLower * 0.35 + jawOpen * 0.12 - eyeWide * 0.28],
+        ['tired', eyeBlink * 0.65 + eyeSquint * 0.5 + mouthShrugLower * 0.25 - eyeWide * 0.22],
+        ['surprised', jawOpen * 0.45 + eyeWide * 0.85 + browInnerUp * 0.5],
+        ['alert', eyeWide * 0.7 + browInnerUp * 0.35 + jawOpen * 0.18],
+        ['sad', frown * 0.95 + browInnerUp * 0.42 + mouthShrugLower * 0.32 - smile * 0.4],
+        ['lowMood', frown * 0.62 + mouthShrugLower * 0.36 + browInnerUp * 0.28 - smile * 0.25],
+        ['angry', browDown * 0.9 + mouthPress * 0.55 + eyeSquint * 0.25],
+        ['tense', mouthPress * 0.6 + browDown * 0.42 + eyeSquint * 0.3],
+        ['worried', browInnerUp * 0.62 + eyeWide * 0.34 + mouthPress * 0.22 - smile * 0.28],
+        ['fearful', eyeWide * 0.58 + browInnerUp * 0.55 + jawOpen * 0.18],
+        ['uncomfortable', noseSneer * 0.72 + mouthRoll * 0.35 + mouthPress * 0.22],
+        ['uneasy', mouthStretch * 0.45 + mouthPucker * 0.32 + mouthShrugUpper * 0.24 + browInnerUp * 0.22],
+        ['focused', browDown * 0.35 + eyeSquint * 0.42 + mouthPress * 0.28 - frown * 0.18],
+        ['calm', 0.38 - Math.max(mouthActivity, browDown, eyeWide, browInnerUp) * 0.18]
+      ].sort((a, b) => b[1] - a[1]);
+
+      const [mood, score] = candidates[0];
+      if (score < 0.24) return ['calm', 0.42];
+      return [mood, clampScore(score)];
+    }
+
+    function getLandmarkBox(landmarks = []) {
+      if (!landmarks.length || !cameraVideo.videoWidth || !cameraVideo.videoHeight) return null;
+      const xs = landmarks.map(point => point.x);
+      const ys = landmarks.map(point => point.y);
+      const minX = Math.max(0, Math.min(...xs));
+      const maxX = Math.min(1, Math.max(...xs));
+      const minY = Math.max(0, Math.min(...ys));
+      const maxY = Math.min(1, Math.max(...ys));
+
+      return {
+        x: minX * cameraVideo.videoWidth,
+        y: minY * cameraVideo.videoHeight,
+        width: Math.max(1, (maxX - minX) * cameraVideo.videoWidth),
+        height: Math.max(1, (maxY - minY) * cameraVideo.videoHeight)
+      };
+    }
+
+    function drawExpressionBox(box, label, score) {
+      const { ctx, width, height } = sizeExpressionOverlay();
+      ctx.clearRect(0, 0, width, height);
+      if (!box || !cameraVideo.videoWidth || !cameraVideo.videoHeight) return;
+
+      const scaleX = width / cameraVideo.videoWidth;
+      const scaleY = height / cameraVideo.videoHeight;
+      const x = box.x * scaleX;
+      const y = box.y * scaleY;
+      const w = box.width * scaleX;
+      const h = box.height * scaleY;
+
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#3aa6a0';
+      ctx.strokeRect(x, y, w, h);
+      ctx.font = '13px sans-serif';
+      const text = `${label} ${Math.round(score * 100)}%`;
+      const textWidth = Math.min(Math.max(120, ctx.measureText(text).width + 16), width - x);
+      ctx.fillStyle = '#1f2937';
+      ctx.fillRect(x, Math.max(0, y - 30), textWidth, 26);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(text, x + 8, Math.max(18, y - 12));
+    }
+
+    function saveExpressionObservation(mood, score) {
+      if (!record) return;
+      const now = Date.now();
+      if (lastSavedExpressionMood === mood && now - lastExpressionSaveAt < 20000) return;
+      if (lastSavedExpressionMood !== mood && now - lastExpressionSaveAt < 5000) return;
+      const info = expressionInfo[mood] || expressionInfo.neutral;
+      const observation = {
+        mood,
+        label: info.label,
+        confidence: Math.round(score * 100),
+        updatedAt: window.MorningApp.nowIso()
+      };
+      record.expression = {
+        ...observation
+      };
+      if (!Array.isArray(record.expressionHistory)) record.expressionHistory = [];
+      record.expressionHistory.push(observation);
+      record.expressionHistory = record.expressionHistory.slice(-30);
+      lastSavedExpressionMood = mood;
+      lastExpressionSaveAt = now;
+      record = saveStudentRecord(record);
+      renderMemoryCard();
+    }
+
+    function speakExpressionFeedback(mood, score) {
+      const info = expressionInfo[mood] || expressionInfo.neutral;
+      const speaking = 'speechSynthesis' in window && window.speechSynthesis.speaking;
+      const now = Date.now();
+      const repeatedMood = lastExpressionMood === mood;
+
+      if (score < 0.46 || recognitionActive || speaking || autoListenTimer) return;
+      if (expressionFeedbackCount > 0) {
+        if (repeatedMood || now - lastExpressionMessageAt < 45000 || expressionFeedbackCount >= 3) return;
+      }
+
+      lastExpressionMood = mood;
+      lastExpressionMessageAt = now;
+      expressionGreetingDone = true;
+      expressionFeedbackCount += 1;
+      record.expressionGreetingDone = true;
+      record.expressionFeedbackCount = expressionFeedbackCount;
+      record = saveStudentRecord(record);
+      buddy.dataset.mood = info.mood;
+      addTranscript('bot', info.message, 'camera');
+      speak(info.message);
+    }
+
+    function handleExpressionResult(mood, score, box, engineLabel) {
+      const safeMood = expressionInfo[mood] ? mood : 'neutral';
+      const info = expressionInfo[safeMood];
+      drawExpressionBox(box, info.label, score);
+      cameraStatus.textContent = `${engineLabel} 표정 신호: ${info.label} ${Math.round(score * 100)}%`;
+      saveExpressionObservation(safeMood, score);
+      speakExpressionFeedback(safeMood, score);
+    }
+
+    async function analyzeMediaPipeExpression() {
+      const result = faceLandmarker.detectForVideo(cameraVideo, performance.now());
+      const landmarks = result.faceLandmarks?.[0];
+      const blendshapes = result.faceBlendshapes?.[0]?.categories || [];
+
+      if (!landmarks || !blendshapes.length) {
+        clearExpressionOverlay();
+        cameraStatus.textContent = '얼굴을 찾는 중이에요.';
+        return;
+      }
+
+      const [mood, score] = inferExpressionFromBlendshapes(blendshapes);
+      handleExpressionResult(mood, score, getLandmarkBox(landmarks), 'MediaPipe');
+    }
+
+    async function analyzeFaceApiExpression() {
+      const result = await faceapi
+        .detectSingleFace(cameraVideo, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.35 }))
+        .withFaceExpressions();
+
+      if (!result) {
+        clearExpressionOverlay();
+        cameraStatus.textContent = '얼굴을 찾는 중이에요.';
+        return;
+      }
+
+      const [expression, score] = inferExpressionFromFaceApi(result.expressions);
+      handleExpressionResult(expression, score, result.detection.box, '기본');
+    }
+
+    async function analyzeExpression() {
+      if (!cameraStream || !expressionModelReady || cameraVideo.readyState < 2) return;
+
+      try {
+        if (expressionEngine === 'mediapipe' && faceLandmarker) {
+          await analyzeMediaPipeExpression();
+        } else {
+          await analyzeFaceApiExpression();
+        }
+      } catch (error) {
+        console.warn(error);
+        cameraStatus.textContent = '표정 확인을 잠시 쉬고 있어요.';
+      }
+    }
+
+    function runExpressionLoop() {
+      let lastRun = 0;
+
+      async function tick(now) {
+        if (!cameraStream) return;
+        if (now - lastRun > 1400) {
+          lastRun = now;
+          await analyzeExpression();
+        }
+        expressionLoop = requestAnimationFrame(tick);
+      }
+
+      cancelAnimationFrame(expressionLoop);
+      expressionLoop = requestAnimationFrame(tick);
+    }
+
+    function updateControls() {
+      const hasStudent = Boolean(selectedStudentNo);
+      const complete = hasStudent && isComplete(record);
+      const readyForNewQuestion = hasStudent && record && !(record.transcript || []).length;
+      repeatQuestionButton.disabled = !hasStudent || !record || complete || feedbackPending;
+      startVoiceButton.disabled = !hasStudent || !record || complete || recognitionActive || recognitionStarting || readyForNewQuestion || feedbackPending;
+      stopVoiceButton.disabled = !recognitionActive && !recognitionStarting;
+      continueQuestionButton.disabled = !hasStudent || !record || complete || feedbackPending;
+      downloadMineButton.disabled = !hasStudent || !record;
+
+      if (!hasStudent) {
+        voiceStatus.textContent = '로그인 대기';
+        liveTranscript.textContent = '번호와 비밀번호를 먼저 입력해 주세요.';
+      } else if (!record || readyForNewQuestion) {
+        voiceStatus.textContent = '새 대화 준비';
+        liveTranscript.textContent = '다음 질문 확인을 누르면 오늘 대화를 새로 시작해요.';
+      } else if (feedbackPending) {
+        voiceStatus.textContent = '대답 살피는 중';
+        liveTranscript.textContent = '콩이가 방금 대답에 맞는 말을 고르고 있어요.';
+      } else if (complete) {
+        voiceStatus.textContent = '대화 완료';
+        liveTranscript.textContent = '오늘 아침대화가 저장됐어요.';
+      } else if (!SpeechRecognition) {
+        voiceStatus.textContent = '직접 기록 가능';
+        liveTranscript.textContent = '이 브라우저는 음성 인식을 지원하지 않아 직접 기록을 사용할 수 있어요.';
+        fallbackForm.classList.add('show');
+      } else if (recognitionStarting) {
+        voiceStatus.textContent = '마이크 준비 중';
+      } else if (!recognitionActive) {
+        voiceStatus.textContent = '질문을 듣는 중';
+      }
+    }
+
+    function scheduleAutoListen() {
+      window.clearTimeout(autoListenTimer);
+      autoListenTimer = 0;
+      if (!selectedStudentNo || !record || currentQuestionIndex >= questions.length) return;
+      if (!SpeechRecognition) {
+        fallbackForm.classList.add('show');
+        updateControls();
+        return;
+      }
+
+      autoListenTimer = window.setTimeout(() => {
+        autoListenTimer = 0;
+        const speaking = 'speechSynthesis' in window && (window.speechSynthesis.speaking || window.speechSynthesis.pending);
+        const justSpoke = Date.now() - lastBotSpeechEndedAt < 1200;
+        if (botSpeechActive || speaking || justSpoke) {
+          scheduleAutoListen();
+          return;
+        }
+        if (!recognitionActive && selectedStudentNo && currentQuestionIndex < questions.length) {
+          startVoice({ auto: true });
+        }
+      }, 1500);
+    }
+
+    function setBuddyMoodFromAnswer(key, summary) {
+      if (key === 'mood' && /밝음/.test(summary)) {
+        buddy.dataset.mood = 'happy';
+      } else if (/피곤|부족/.test(summary)) {
+        buddy.dataset.mood = 'tired';
+      } else if (/걱정|불안|갈등|있음/.test(summary)) {
+        buddy.dataset.mood = 'worried';
+      } else if (/속상|답답|화남/.test(summary)) {
+        buddy.dataset.mood = 'sad';
+      } else {
+        buddy.dataset.mood = 'neutral';
+      }
+    }
+
+    function buildFeedback(key, rawText, summary) {
+      const text = String(rawText || '').replace(/\s+/g, '');
+
+      if (key === 'sleep') {
+        if (/부족|피곤|못잤|잠이안|졸려|늦게|자주깼|설쳤/.test(summary + text)) {
+          return '잠이 부족했구나. 아침부터 몸이 무거울 수 있겠다. 오늘은 무리하지 말고 선생님께도 피곤하다고 알려두면 좋아.';
+        }
+        if (/양호|잘잤|푹잤|충분|좋았/.test(summary + text)) {
+          return '푹 잤다니 다행이야. 몸이 조금 더 가볍게 하루를 시작할 수 있겠다.';
+        }
+        return '잠 이야기를 들려줘서 고마워. 몸 상태는 하루 기분에도 영향을 줄 수 있어서 잘 기억해둘게.';
+      }
+
+      if (key === 'breakfast') {
+        if (/먹지않음|안먹|못먹|굶/.test(summary + text)) {
+          return '아침을 못 먹었구나. 배가 고프면 집중하기 어려울 수 있어. 필요하면 선생님께 조용히 말해도 괜찮아.';
+        }
+        if (/먹음|조금먹음|먹었|밥|빵|시리얼|과일|우유/.test(summary + text)) {
+          return '아침을 챙겼다니 좋아. 오늘 움직일 힘을 조금 얻었겠다.';
+        }
+        return '아침밥 이야기도 알려줘서 고마워. 선생님이 네 하루 상태를 살피는 데 도움이 돼.';
+      }
+
+      if (key === 'special') {
+        if (/없음|없어|없었|별일없|괜찮/.test(summary + text)) {
+          return '특별한 일이 없었다니 다행이야. 아무 일 없는 아침도 좋은 기록이야.';
+        }
+        return '그런 일이 있었구나. 말해줘서 고마워. 혼자만 알고 있지 않아도 되게 선생님이 확인할 수 있게 정리해둘게.';
+      }
+
+      if (key === 'mood') {
+        if (/밝음|좋|기뻐|행복|신나|재밌|설레/.test(summary + text)) {
+          return '좋은 기분이라니 나도 기뻐. 오늘 그 좋은 마음이 조금 더 오래 갔으면 좋겠다.';
+        }
+        if (/피곤|속상|슬퍼|우울|답답|화남|짜증|걱정|불안|무서|긴장|힘들/.test(summary + text)) {
+          return '마음이 편하지 않았구나. 그렇게 느끼는 건 이상한 일이 아니야. 이야기해줘서 고마워.';
+        }
+        if (/보통|괜찮|그냥|모르겠/.test(summary + text)) {
+          return '보통이라고 말해줘도 충분해. 마음이 딱 한 단어로 정리되지 않을 때도 있으니까.';
+        }
+        return '지금 기분을 알려줘서 고마워. 콩이가 조심스럽게 기억해둘게.';
+      }
+
+      if (key === 'conflict') {
+        if (/없음|없어|없었|별일없|괜찮/.test(summary + text)) {
+          return '친구와 특별한 갈등이 없었다니 다행이야. 오늘도 편안하게 지낼 수 있으면 좋겠다.';
+        }
+        return '친구와의 일이 마음에 남았구나. 속상했을 수 있겠다. 선생님이 상황을 보고 도와줄 수 있게 잘 정리해둘게.';
+      }
+
+      return '말해줘서 고마워. 네 이야기를 소중하게 기록해둘게.';
+    }
+
+    function getPreviousAnswersForFeedback() {
+      if (!record?.answers) return [];
+      return questions
+        .map(question => {
+          const answer = record.answers[question.key];
+          if (!answer?.raw) return null;
+          return {
+            key: question.key,
+            label: question.label,
+            raw: String(answer.raw).slice(0, 220),
+            summary: String(answer.summary || '').slice(0, 180)
+          };
+        })
+        .filter(Boolean);
+    }
+
+    function getExpressionFeedbackContext() {
+      if (!record?.expression) return '';
+      return `${record.expression.label} ${record.expression.confidence}%`;
+    }
+
+    async function requestPersonalizedFeedback(question, rawText, summary) {
+      const fallback = buildFeedback(question.key, rawText, summary);
+      if (!window.fetch) return fallback;
+
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 9000);
+
+      try {
+        const response = await fetch('/api/morning-feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            questionKey: question.key,
+            questionLabel: question.label,
+            answer: rawText,
+            summary,
+            previousAnswers: getPreviousAnswersForFeedback(),
+            expression: getExpressionFeedbackContext()
+          }),
+          signal: controller.signal
+        });
+
+        if (!response.ok) throw new Error('personalized-feedback-unavailable');
+        const data = await response.json();
+        const personalized = data?.feedback?.feedback || data?.feedback;
+        return typeof personalized === 'string' && personalized.trim()
+          ? personalized.trim()
+          : fallback;
+      } catch (error) {
+        console.warn('맞춤 피드백을 사용할 수 없어 기본 피드백으로 이어갑니다.', error);
+        return fallback;
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    }
+
+    function askCurrentQuestion(options = {}) {
+      if (!record || currentQuestionIndex >= questions.length) {
+        finishConversation();
+        return;
+      }
+
+      const question = questions[currentQuestionIndex];
+      const alreadyAsked = record.transcript.some(item => item.role === 'bot' && item.key === question.key && item.text === question.prompt);
+
+      if (!alreadyAsked || options.force) {
+        addTranscript('bot', question.prompt, question.key);
+      }
+
+      speak(question.prompt, scheduleAutoListen);
+      conversationTitle.textContent = `${selectedStudentNo}번과 대화 중`;
+      liveTranscript.textContent = `${question.emptyPrompt} 질문이 끝나면 바로 마이크가 켜져요.`;
+      updateControls();
+    }
+
+    async function selectStudent(studentNo) {
+      selectedStudentNo = studentNo;
+      activeDateKey = localDateKey();
+      todayLabel.textContent = formatToday();
+      record = await getTodayStudentRecord(studentNo) || createRecord(studentNo);
+      currentQuestionIndex = findNextQuestionIndex();
+      expressionGreetingDone = Boolean(record.expressionGreetingDone);
+      expressionFeedbackCount = Number(record.expressionFeedbackCount || (record.expressionGreetingDone ? 1 : 0));
+      lastExpressionMood = record.expression?.mood || '';
+      lastSavedExpressionMood = record.expression?.mood || '';
+      lastExpressionSaveAt = 0;
+
+      selectedStudentLabel.textContent = `${studentNo}번`;
+      conversationTitle.textContent = `${studentNo}번과 대화`;
+      renderStudentGrid();
+      renderTranscript();
+      renderProgress();
+      renderMemoryCard();
+      updateStudentPrivacyView();
+      await startCamera({ withMicrophone: true, auto: true });
+
+      if (currentQuestionIndex < questions.length) {
+        askCurrentQuestion();
+      } else {
+        finishConversation(false);
+      }
+      updateControls();
+    }
+
+    async function handleAnswer(text) {
+      if (!record || currentQuestionIndex >= questions.length) return;
+      const value = String(text || '').trim();
+      if (!value) {
+        liveTranscript.textContent = questions[currentQuestionIndex].emptyPrompt;
+        return;
+      }
+
+      const question = questions[currentQuestionIndex];
+      const summary = summarizeAnswer(question.key, value);
+      addTranscript('student', value, question.key);
+
+      record.answers[question.key] = {
+        raw: value,
+        summary,
+        status: answerStatus(question.key, summary),
+        answeredAt: window.MorningApp.nowIso()
+      };
+      record = saveStudentRecord(record);
+      setBuddyMoodFromAnswer(question.key, summary);
+      renderProgress();
+      renderMemoryCard();
+
+      currentQuestionIndex += 1;
+      feedbackPending = true;
+      const feedbackStudentNo = selectedStudentNo;
+      const feedbackQuestionIndex = currentQuestionIndex;
+      updateControls();
+
+      window.setTimeout(async () => {
+        if (!record || selectedStudentNo !== feedbackStudentNo || currentQuestionIndex !== feedbackQuestionIndex) {
+          if (selectedStudentNo === feedbackStudentNo) {
+            feedbackPending = false;
+            updateControls();
+          }
+          return;
+        }
+        const feedback = await requestPersonalizedFeedback(question, value, summary);
+        if (!record || selectedStudentNo !== feedbackStudentNo || currentQuestionIndex !== feedbackQuestionIndex) {
+          if (selectedStudentNo === feedbackStudentNo) {
+            feedbackPending = false;
+            updateControls();
+          }
+          return;
+        }
+        feedbackPending = false;
+        addTranscript('bot', feedback, question.key);
+        speak(feedback, () => {
+          if (currentQuestionIndex < questions.length) {
+            askCurrentQuestion();
+          } else {
+            finishConversation();
+          }
+        });
+        updateControls();
+      }, 350);
+    }
+
+    function finishConversation(announce = true) {
+      if (!record) return;
+      if (!record.completedAt) {
+        record.completedAt = window.MorningApp.nowIso();
+        record = saveStudentRecord(record);
+      }
+      renderProgress();
+      renderMemoryCard();
+      renderStudentGrid();
+      updateStudentPrivacyView();
+      updateControls();
+
+      if (announce && !record.transcript.some(item => item.role === 'bot' && item.key === 'complete')) {
+        const message = '오늘 아침 이야기를 들려줘서 고마워. 선생님이 필요한 부분을 확인할 수 있게 정리해둘게.';
+        addTranscript('bot', message, 'complete');
+        speak(message);
+      }
+    }
+
+    function clearSpeechSilenceTimer() {
+      window.clearTimeout(speechSilenceTimer);
+      speechSilenceTimer = 0;
+    }
+
+    function getHeardSpeech() {
+      return `${pendingSpeech} ${interimSpeech}`.replace(/\s+/g, ' ').trim();
+    }
+
+    function normalizeSpeechText(text) {
+      return String(text || '')
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}]+/gu, '');
+    }
+
+    function isLikelyBotEcho(text) {
+      const heard = normalizeSpeechText(text);
+      const bot = normalizeSpeechText(lastBotSpeechText);
+      if (heard.length < 12 || bot.length < 12) return false;
+      if (bot.includes(heard) || heard.includes(bot)) return true;
+      const compareLength = Math.min(28, heard.length, bot.length);
+      if (compareLength >= 12 && heard.slice(0, compareLength) === bot.slice(0, compareLength)) return true;
+      return Date.now() - lastBotSpeechEndedAt < 3500 && bot.includes(heard.slice(0, Math.min(18, heard.length)));
+    }
+
+    function scheduleSpeechSilenceStop() {
+      clearSpeechSilenceTimer();
+      speechSilenceTimer = window.setTimeout(() => {
+        speechSilenceTimer = 0;
+        if (recognition && recognitionActive) {
+          liveTranscript.textContent = `${getHeardSpeech()}  ·  3초 동안 말이 없어 대답을 정리하고 있어요.`;
+          recognition.stop();
+        }
+      }, 3000);
+    }
+
+    function createRecognition(startToken) {
+      const next = new SpeechRecognition();
+      const isCurrentRecognition = () => recognition === next && recognitionStartToken === startToken;
+      next.lang = 'ko-KR';
+      next.interimResults = true;
+      next.continuous = true;
+      next.maxAlternatives = 1;
+
+      next.onstart = () => {
+        if (!isCurrentRecognition()) return;
+        recognitionStarting = false;
+        recognitionActive = true;
+        recognitionLastError = '';
+        microphonePermissionPrepared = true;
+        pendingSpeech = '';
+        interimSpeech = '';
+        clearSpeechSilenceTimer();
+        voiceStatus.textContent = '듣고 있어요';
+        liveTranscript.textContent = '지금 말해도 돼요. 말을 마치고 3초 동안 조용하면 대답을 정리할게요.';
+        updateControls();
+      };
+
+      next.onresult = event => {
+        if (!isCurrentRecognition()) return;
+        let finalText = '';
+        let interimText = '';
+        for (let index = event.resultIndex; index < event.results.length; index += 1) {
+          const transcript = event.results[index][0]?.transcript || '';
+          if (event.results[index].isFinal) finalText += transcript;
+          else interimText += transcript;
+        }
+        if (finalText) pendingSpeech = `${pendingSpeech} ${finalText}`.replace(/\s+/g, ' ').trim();
+        interimSpeech = interimText.trim();
+        const heard = getHeardSpeech();
+        liveTranscript.textContent = heard
+          ? `${heard}  ·  계속 말해도 돼요.`
+          : '말을 듣고 있어요...';
+        if (heard) scheduleSpeechSilenceStop();
+      };
+
+      next.onerror = event => {
+        if (!isCurrentRecognition()) return;
+        console.warn(event.error);
+        recognitionStarting = false;
+        recognitionLastError = event.error || 'unknown';
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          microphonePermissionPrepared = false;
+        }
+        voiceStatus.textContent = event.error === 'not-allowed' || event.error === 'service-not-allowed' ? '마이크 권한 필요' : '다시 말해볼까요';
+        liveTranscript.textContent = getSpeechErrorMessage(event.error);
+        fallbackForm.classList.add('show');
+        updateControls();
+      };
+
+      next.onend = () => {
+        if (!isCurrentRecognition()) return;
+        recognitionActive = false;
+        recognitionStarting = false;
+        clearSpeechSilenceTimer();
+        const heard = getHeardSpeech();
+        const lastError = recognitionLastError;
+        recognitionLastError = '';
+        pendingSpeech = '';
+        interimSpeech = '';
+        if (recognition === next) recognition = null;
+        updateControls();
+        if (!heard && lastError) {
+          liveTranscript.textContent = getSpeechErrorMessage(lastError);
+          return;
+        }
+        if (heard && isLikelyBotEcho(heard)) {
+          liveTranscript.textContent = '콩이 목소리가 마이크에 들어와서 다시 들을게요. 학생이 직접 대답해 주세요.';
+          scheduleAutoListen();
+          return;
+        }
+        if (heard) handleAnswer(heard);
+        else liveTranscript.textContent = record && currentQuestionIndex < questions.length
+          ? questions[currentQuestionIndex].emptyPrompt
+          : '오늘 아침대화가 저장됐어요.';
+      };
+
+      return next;
+    }
+
+    async function startVoice(options = {}) {
+      const autoStart = options?.auto === true;
+      if (!selectedStudentNo || !record || currentQuestionIndex >= questions.length) return;
+      if (recognitionActive || recognitionStarting) return;
+      const speaking = 'speechSynthesis' in window && (window.speechSynthesis.speaking || window.speechSynthesis.pending);
+      if (botSpeechActive || speaking) {
+        liveTranscript.textContent = '콩이가 말하는 중이에요. 말이 끝나면 학생 대답을 들을게요.';
+        scheduleAutoListen();
+        return;
+      }
+      if (!SpeechRecognition) {
+        fallbackForm.classList.add('show');
+        updateControls();
+        return;
+      }
+
+      window.clearTimeout(autoListenTimer);
+      autoListenTimer = 0;
+      const startToken = recognitionStartToken + 1;
+      recognitionStartToken = startToken;
+      recognitionStarting = true;
+      recognitionLastError = '';
+      voiceStatus.textContent = '마이크 준비 중';
+      liveTranscript.textContent = '마이크 권한을 물으면 허용을 눌러 주세요. 곧 학생 대답을 들을게요.';
+      updateControls();
+
+      try {
+        await prepareMicrophonePermission();
+        if (!recognitionStarting || recognitionStartToken !== startToken) return;
+        recognition = createRecognition(startToken);
+        recognition.start();
+      } catch (error) {
+        if (recognitionStartToken !== startToken) return;
+        console.warn(error);
+        recognitionStarting = false;
+        recognitionActive = false;
+        recognitionLastError = '';
+        recognition = null;
+        voiceStatus.textContent = autoStart ? '마이크를 눌러 주세요' : '마이크를 다시 눌러 주세요';
+        liveTranscript.textContent = isMicrophonePermissionError(error)
+          ? '마이크 권한이 필요해요. 주소창 왼쪽의 권한 설정에서 마이크를 허용한 뒤 다시 눌러 주세요.'
+          : '마이크가 바로 켜지지 않았어요. 다시 눌러 말하거나 직접 기록을 사용할 수 있어요.';
+        fallbackForm.classList.add('show');
+        updateControls();
+      }
+    }
+
+    function stopVoice() {
+      window.clearTimeout(autoListenTimer);
+      autoListenTimer = 0;
+      clearSpeechSilenceTimer();
+      const activeRecognition = recognition;
+      const shouldStopRecognition = activeRecognition && (recognitionActive || recognitionStarting);
+      recognitionStartToken += 1;
+      recognition = null;
+      recognitionStarting = false;
+      recognitionActive = false;
+      recognitionLastError = '';
+      if (shouldStopRecognition) {
+        try {
+          activeRecognition.stop();
+        } catch (error) {
+          console.warn(error);
+        }
+      }
+      updateControls();
+    }
+
+    function downloadMyRecord() {
+      if (!record) return;
+      const lines = [
+        `아침대화 ${record.studentNo}번 기록`,
+        `저장 시각: ${formatDate(record.updatedAt)}`,
+        '',
+        '[요약]',
+        buildStudentSummary(record),
+        '',
+        '[대화 전문]',
+        ...(record.transcript || []).map(item => {
+          const speaker = item.role === 'student' ? '학생' : '콩이';
+          const label = window.MorningApp.labels[item.key] || '대화';
+          return `- ${formatDate(item.time)} / ${speaker} / ${label}: ${item.text}`;
+        })
+      ];
+      downloadText(`아침대화_${record.studentNo}번.txt`, lines.join('\n'));
+    }
+
+    repeatQuestionButton.addEventListener('click', () => askCurrentQuestion({ speakOnly: true }));
+    startVoiceButton.addEventListener('click', startVoice);
+    stopVoiceButton.addEventListener('click', stopVoice);
+    startCameraButton.addEventListener('click', () => startCamera({ withMicrophone: true }));
+    stopCameraButton.addEventListener('click', stopCamera);
+    window.addEventListener('resize', () => {
+      if (cameraStream) sizeExpressionOverlay();
+    });
+    window.addEventListener('beforeunload', stopCamera);
+    window.addEventListener('storage', event => {
+      if (event.key && event.key !== STORAGE_KEY) return;
+      syncSelectedStudentRecordFromStorage();
+    });
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.addEventListener('voiceschanged', () => {
+        kongiVoice = chooseKongiVoice();
+      });
+    }
+    studentLoginForm.addEventListener('submit', handleStudentLogin);
+    loginPasscode.addEventListener('input', () => {
+      loginPasscode.value = loginPasscode.value.replace(/\D/g, '').slice(0, 3);
+    });
+    showFallbackButton.addEventListener('click', () => {
+      fallbackForm.classList.toggle('show');
+      fallbackInput.focus();
+    });
+    continueQuestionButton.addEventListener('click', () => askCurrentQuestion({ force: true }));
+    downloadMineButton.addEventListener('click', downloadMyRecord);
+    fallbackForm.addEventListener('submit', event => {
+      event.preventDefault();
+      const value = fallbackInput.value.trim();
+      if (!value) return;
+      fallbackInput.value = '';
+      handleAnswer(value);
+    });
+
+    try {
+      pruneLocalRecordsForToday();
+    } catch (error) {
+      console.warn(error);
+    }
+
+    todayLabel.textContent = formatToday();
+    window.setInterval(checkDateBoundary, 60000);
+    window.setInterval(syncSelectedStudentRecordFromServer, 5000);
+    renderStudentGrid();
+    renderTranscript();
+    renderProgress();
+    renderMemoryCard();
+    updateStudentPrivacyView();
+    updateControls();
+
+    const params = new URLSearchParams(window.location.search);
+    const initialStudent = params.get('student');
+    const initialPasscode = params.get('passcode');
+    if (initialStudent && Number(initialStudent) >= 1 && Number(initialStudent) <= STUDENT_COUNT) {
+      loginStudentNo.value = String(Number(initialStudent));
+      if (initialPasscode && verifyStudentPasscode(initialStudent, initialPasscode)) {
+        loginPasscode.value = initialPasscode;
+        selectStudent(String(Number(initialStudent)));
+      }
+    }
+  </script>
+</body>
+</html>
