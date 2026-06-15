@@ -47,6 +47,14 @@
 - `OPENAI_API_KEY`가 없거나 OpenAI 분석에 실패하면 수업 중 결과 확인이 가능하도록 키워드 기반 분석으로 대체됩니다.
 - API 키는 `.env` 또는 `openaiapi.env` 파일에서만 읽으며 브라우저로 노출하지 않습니다.
 
+## Railway 배포
+
+1. Railway에서 GitHub 저장소를 연결해 배포합니다.
+2. 서비스의 Public Networking에서 `Generate Domain`을 눌러 HTTPS 주소를 만듭니다.
+3. 학생창은 `https://배포주소/student.html`, 관리자창은 `https://배포주소/admin.html`로 엽니다.
+4. 기록을 재배포 후에도 보존하려면 Railway Volume을 `/data`에 마운트하고 환경변수 `DATA_DIR=/data`를 추가합니다.
+5. OpenAI 맞춤 피드백을 쓰려면 Variables에 `OPENAI_API_KEY`, 필요 시 `OPENAI_MODEL`을 추가합니다.
+
 ## 기술 스택
 
 - HTML5

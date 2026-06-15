@@ -11,7 +11,7 @@ dotenv.config({ path: path.resolve(process.cwd(), 'openaiapi.env') });
 const app = express();
 const port = process.env.PORT || 3000;
 const openaiSecretPath = path.resolve(process.cwd(), 'openaiapi.env');
-const dataDir = path.resolve(process.cwd(), '.data');
+const dataDir = path.resolve(process.env.DATA_DIR || path.join(process.cwd(), '.data'));
 const statePath = path.join(dataDir, 'conflict-state.json');
 const morningRecordsPath = path.join(dataDir, 'morning-records.json');
 

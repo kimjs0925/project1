@@ -11,7 +11,7 @@ import threading
 
 
 ROOT = Path(__file__).resolve().parent
-DATA_DIR = ROOT / ".data"
+DATA_DIR = Path(os.environ.get("DATA_DIR", ROOT / ".data")).resolve()
 STATE_PATH = DATA_DIR / "conflict-state.json"
 MORNING_RECORDS_PATH = DATA_DIR / "morning-records.json"
 PORT = int(os.environ.get("PORT", "3000"))
