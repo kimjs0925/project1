@@ -274,6 +274,78 @@ function normalizeMorningRecord(record) {
   };
 }
 
+function getMorningRecordTimestampMs(record) {
+  const timestamps = [
+    parseTimestampMs(record?.completedAt),
+    parseTimestampMs(record?.updatedAt),
+    parseTimestampMs(record?.startedAt),
+    parseTimestampMs(record?.recordDate ? `${record.recordDate}T23:59:59.999` : '')
+  ].filter(Boolean);
+  return timestamps.length ? Math.max(...timestamps) : 0;
+}
+
+function pruneMorningStoreForRetention(store) {
+  const cutoff = retentionCutoffMs();
+  const records = {};
+  const history = {};
+  const deleted = {};
+  let changed = false;
+
+  function keepRecord(studentNo, dateKey, record) {
+    const source = {
+      ...record,
+      studentNo: record?.studentNo || studentNo,
+      recordDate: record?.recordDate || dateKey
+    };
+    const normalized = normalizeMorningRecord(source);
+    if (!normalized) {
+      changed = true;
+      return;
+    }
+
+    const timestamp = getMorningRecordTimestampMs(source);
+    if (timestamp && timestamp < cutoff) {
+      changed = true;
+      return;
+    }
+
+    const recordDate = getMorningRecordDateKey(normalized);
+    if (!history[normalized.studentNo]) history[normalized.studentNo] = {};
+    history[normalized.studentNo][recordDate] = normalized;
+
+    const previous = records[normalized.studentNo];
+    if (!previous || getMorningRecordTimestampMs(normalized) >= getMorningRecordTimestampMs(previous)) {
+      records[normalized.studentNo] = normalized;
+    }
+  }
+
+  Object.entries(store?.history || {}).forEach(([studentNo, recordsByDate]) => {
+    if (!recordsByDate || typeof recordsByDate !== 'object') {
+      changed = true;
+      return;
+    }
+    Object.entries(recordsByDate).forEach(([dateKey, record]) => keepRecord(studentNo, dateKey, record));
+  });
+
+  Object.entries(store?.records || {}).forEach(([studentNo, record]) => {
+    keepRecord(studentNo, record?.recordDate || getMorningRecordDateKey(record), record);
+  });
+
+  Object.entries(store?.deleted || {}).forEach(([studentNo, entry]) => {
+    const deletedAt = parseTimestampMs(entry?.deletedAt);
+    if (deletedAt && deletedAt < cutoff) {
+      changed = true;
+      return;
+    }
+    deleted[studentNo] = entry;
+  });
+
+  if (JSON.stringify(store?.records || {}) !== JSON.stringify(records)) changed = true;
+  if (JSON.stringify(store?.history || {}) !== JSON.stringify(history)) changed = true;
+  if (JSON.stringify(store?.deleted || {}) !== JSON.stringify(deleted)) changed = true;
+  return { store: { records, history, deleted }, changed };
+}
+
 function readMorningStore() {
   try {
     if (!fs.existsSync(morningRecordsPath)) return { records: {}, history: {}, deleted: {} };
@@ -304,11 +376,14 @@ function readMorningStore() {
         history[normalized.studentNo][getMorningRecordDateKey(normalized)] = normalized;
       });
     });
-    return {
+    const store = {
       records,
       history,
       deleted: parsed?.deleted && typeof parsed.deleted === 'object' ? parsed.deleted : {}
     };
+    const { store: nextStore, changed } = pruneMorningStoreForRetention(store);
+    if (changed) writeMorningStore(nextStore);
+    return nextStore;
   } catch (error) {
     console.error('아침대화 기록 읽기 오류:', error);
     return { records: {}, history: {}, deleted: {} };
@@ -341,8 +416,8 @@ function serializeForInlineScript(value) {
 function getRequestOrigin(req) {
   const forwardedProto = String(req.get('x-forwarded-proto') || '').split(',')[0].trim();
   const forwardedHost = String(req.get('x-forwarded-host') || '').split(',')[0].trim();
-  const proto = forwardedProto || req.protocol;
   const host = forwardedHost || req.get('host');
+  const proto = forwardedProto || (String(host || '').endsWith('.up.railway.app') ? 'https' : req.protocol);
   return `${proto}://${host}`;
 }
 
@@ -420,7 +495,7 @@ app.post('/api/state', (req, res) => {
     return res.status(400).json({ error: '저장할 상태 데이터가 필요합니다.' });
   }
 
-  const nextState = mergeAppState(readAppState(), incomingState);
+  const { state: nextState } = pruneAppStateForRetention(mergeAppState(readAppState(), incomingState));
   writeAppState(nextState);
   return res.json({ state: nextState });
 });
@@ -1449,7 +1524,8 @@ app.post('/api/morning-records', (req, res) => {
   if (deleted?.recordDate === recordDate) {
     delete store.deleted[record.studentNo];
   }
-  writeMorningStore(store);
+  const { store: nextStore } = pruneMorningStoreForRetention(store);
+  writeMorningStore(nextStore);
   return res.json({ ok: true, record });
 });
 
