@@ -24,6 +24,8 @@ const openaiSecretPath = path.resolve(process.cwd(), 'openaiapi.env');
 const dataDir = path.resolve(process.env.DATA_DIR || path.join(process.cwd(), '.data'));
 const statePath = path.join(dataDir, 'conflict-state.json');
 const morningRecordsPath = path.join(dataDir, 'morning-records.json');
+const studentDataRetentionDays = Number(process.env.STUDENT_DATA_RETENTION_DAYS || 2);
+const studentDataRetentionMs = Math.max(1, studentDataRetentionDays) * 24 * 60 * 60 * 1000;
 
 function loadOpenAIApiKey() {
   if (process.env.OPENAI_API_KEY) return process.env.OPENAI_API_KEY;
@@ -153,12 +155,84 @@ const emptyState = {
   analysis: { summary: '', frequency: {}, details: '', updatedAt: '' }
 };
 
+function parseTimestampMs(value) {
+  const timestamp = Date.parse(String(value || ''));
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function retentionCutoffMs() {
+  return Date.now() - studentDataRetentionMs;
+}
+
+function normalizeStudentResponseEntry(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  const who = typeof entry.who === 'string' ? entry.who.trim() : '';
+  const text = typeof entry.text === 'string' ? entry.text.trim() : '';
+  if (!who || !text) return null;
+  const createdAt = parseTimestampMs(entry.createdAt) ? entry.createdAt : new Date().toISOString();
+  return {
+    who,
+    text,
+    time: typeof entry.time === 'string' ? entry.time : '',
+    createdAt
+  };
+}
+
+function pruneAppStateForRetention(current) {
+  const nextState = normalizeAppState(current);
+  const cutoff = retentionCutoffMs();
+  let changed = false;
+  const nextStudents = {};
+
+  Object.entries(nextState.students || {}).forEach(([studentId, student]) => {
+    const responses = {};
+    Object.entries(student?.responses || {}).forEach(([situationId, entries]) => {
+      if (!Array.isArray(entries)) {
+        changed = true;
+        return;
+      }
+
+      const kept = [];
+      entries.forEach(entry => {
+        const normalized = normalizeStudentResponseEntry(entry);
+        if (!normalized) {
+          changed = true;
+          return;
+        }
+        if (normalized.createdAt !== entry.createdAt) changed = true;
+        if (parseTimestampMs(normalized.createdAt) < cutoff) {
+          changed = true;
+          return;
+        }
+        kept.push(normalized);
+      });
+
+      if (kept.length) responses[situationId] = kept;
+      if (kept.length !== entries.length) changed = true;
+    });
+
+    if (Object.keys(responses).length) {
+      nextStudents[studentId] = { responses };
+    } else if (student?.responses && Object.keys(student.responses).length) {
+      changed = true;
+    }
+  });
+
+  if (JSON.stringify(nextState.students || {}) !== JSON.stringify(nextStudents)) {
+    changed = true;
+  }
+  nextState.students = nextStudents;
+  return { state: nextState, changed };
+}
+
 function readAppState() {
   try {
     if (!fs.existsSync(statePath)) return { ...emptyState, students: {}, situations: [] };
     const raw = fs.readFileSync(statePath, 'utf8');
     const parsed = JSON.parse(raw);
-    return normalizeAppState(parsed);
+    const { state: nextState, changed } = pruneAppStateForRetention(parsed);
+    if (changed) writeAppState(nextState);
+    return nextState;
   } catch (error) {
     console.error('상태 파일 읽기 오류:', error);
     return { ...emptyState, students: {}, situations: [] };
@@ -264,6 +338,14 @@ function serializeForInlineScript(value) {
   return JSON.stringify(value).replace(/</g, '\\u003c');
 }
 
+function getRequestOrigin(req) {
+  const forwardedProto = String(req.get('x-forwarded-proto') || '').split(',')[0].trim();
+  const forwardedHost = String(req.get('x-forwarded-host') || '').split(',')[0].trim();
+  const proto = forwardedProto || req.protocol;
+  const host = forwardedHost || req.get('host');
+  return `${proto}://${host}`;
+}
+
 function normalizeAppState(value) {
   const source = value && typeof value === 'object' ? value : {};
   return {
@@ -298,15 +380,8 @@ function mergeStudentResponses(baseStudents = {}, incomingStudents = {}) {
       );
 
       entries.forEach(entry => {
-        if (!entry || typeof entry !== 'object') return;
-        const text = typeof entry.text === 'string' ? entry.text.trim() : '';
-        const who = typeof entry.who === 'string' ? entry.who.trim() : '';
-        if (!text || !who) return;
-        const normalized = {
-          who,
-          text,
-          time: typeof entry.time === 'string' ? entry.time : ''
-        };
+        const normalized = normalizeStudentResponseEntry(entry);
+        if (!normalized) return;
         const key = `${normalized.who}\n${normalized.text}\n${normalized.time}`;
         if (!seen.has(key)) {
           seen.add(key);
@@ -374,7 +449,7 @@ app.post('/api/class-settings', (req, res) => {
 app.get('/student-index.html', (req, res) => {
   const indexPath = path.join(process.cwd(), 'index.html');
   const current = readAppState();
-  const teacherOrigin = `${req.protocol}://${req.get('host')}`;
+  const teacherOrigin = getRequestOrigin(req);
   const injection = [
     '<script>',
     `window.CONFLICT_APP_TEACHER_SERVER_URL = ${serializeForInlineScript(teacherOrigin)};`,
