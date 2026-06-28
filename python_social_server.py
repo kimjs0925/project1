@@ -2,21 +2,63 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from datetime import datetime
+import base64
 import json
 import mimetypes
 import os
 import re
 import socket
+import struct
 import threading
+import urllib.error
+import urllib.request
 
 
 ROOT = Path(__file__).resolve().parent
+
+
+def load_env_file(path):
+    if not path.exists():
+        return
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except Exception:
+        print(f"환경 파일을 읽지 못했습니다: {path.name}")
+        return
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+ENV_PATHS = [
+    ROOT / ".env",
+    ROOT / "openaiapi.env",
+    ROOT / "google.env",
+    ROOT.parent / "아침대화" / "google.env",
+]
+if os.environ.get("GOOGLE_ENV_PATH"):
+    ENV_PATHS.append(Path(os.environ["GOOGLE_ENV_PATH"]))
+
+for env_path in ENV_PATHS:
+    load_env_file(env_path)
+
+
 DATA_DIR = Path(os.environ.get("DATA_DIR", ROOT / ".data")).resolve()
 STATE_PATH = DATA_DIR / "conflict-state.json"
 MORNING_RECORDS_PATH = DATA_DIR / "morning-records.json"
 PORT = int(os.environ.get("PORT", "3000"))
 HOST = os.environ.get("HOST", "0.0.0.0")
 MORNING_STORE_LOCK = threading.Lock()
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or ""
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL") or "gemini-3.5-flash"
+GEMINI_TTS_MODEL = os.environ.get("GEMINI_TTS_MODEL") or "gemini-3.1-flash-tts-preview"
+GEMINI_TTS_VOICE = os.environ.get("GEMINI_TTS_VOICE") or "Leda"
 
 EMPTY_STATE = {
     "padletUrl": "",
@@ -27,7 +69,7 @@ EMPTY_STATE = {
     "analysis": {"summary": "", "frequency": {}, "details": "", "updatedAt": ""},
 }
 
-BLOCKED_NAMES = {".env", "openaiapi.env", "제미나이.env.txt"}
+BLOCKED_NAMES = {".env", "openaiapi.env", "google.env", "제미나이.env.txt"}
 STUDENT_COPY_PATH = ROOT / "student-index-copy.html"
 
 
@@ -233,6 +275,198 @@ def merge_state(base, incoming):
     }
 
 
+def compact_text(value, max_length=600):
+    return re.sub(r"\s+", " ", str(value or "")).strip()[:max_length]
+
+
+def parse_json_object(text):
+    raw = str(text or "").strip()
+    try:
+        return json.loads(raw)
+    except Exception:
+        match = re.search(r"\{[\s\S]*\}", raw)
+        if not match:
+            raise
+        return json.loads(match.group(0))
+
+
+def extract_gemini_text(body):
+    if isinstance(body.get("text"), str):
+        return body["text"]
+    chunks = []
+    for candidate in body.get("candidates") or []:
+        content = candidate.get("content") if isinstance(candidate, dict) else {}
+        for part in content.get("parts") or []:
+            text = part.get("text") if isinstance(part, dict) else ""
+            if text:
+                chunks.append(text)
+    return "\n".join(chunks).strip()
+
+
+def extract_gemini_inline_audio(body):
+    for candidate in body.get("candidates") or []:
+        content = candidate.get("content") if isinstance(candidate, dict) else {}
+        for part in content.get("parts") or []:
+            if not isinstance(part, dict):
+                continue
+            inline_data = part.get("inlineData") or part.get("inline_data") or {}
+            if inline_data.get("data"):
+                return {
+                    "data": inline_data["data"],
+                    "mimeType": inline_data.get("mimeType") or inline_data.get("mime_type") or "audio/pcm;rate=24000",
+                }
+    return None
+
+
+def create_wav_bytes(pcm_bytes, sample_rate=24000, channels=1, bits_per_sample=16):
+    byte_rate = sample_rate * channels * bits_per_sample // 8
+    block_align = channels * bits_per_sample // 8
+    header = b"".join([
+        b"RIFF",
+        struct.pack("<I", 36 + len(pcm_bytes)),
+        b"WAVE",
+        b"fmt ",
+        struct.pack("<IHHIIHH", 16, 1, channels, sample_rate, byte_rate, block_align, bits_per_sample),
+        b"data",
+        struct.pack("<I", len(pcm_bytes)),
+    ])
+    return header + pcm_bytes
+
+
+def request_gemini_generate(model, payload):
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY가 설정되지 않았습니다.")
+    model_name = re.sub(r"^models/", "", model)
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
+    raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=raw,
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "x-goog-api-key": GEMINI_API_KEY,
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")[:200]
+        raise RuntimeError(f"Gemini API 요청에 실패했습니다: {detail}") from error
+
+
+def build_morning_feedback_prompt(payload):
+    previous = payload.get("previousAnswers") if isinstance(payload.get("previousAnswers"), list) else []
+    previous_text = "\n".join(
+        f"{compact_text(item.get('label'), 30)}: {compact_text(item.get('summary') or item.get('raw'), 120)}"
+        for item in previous[:5]
+        if isinstance(item, dict)
+    ).strip()
+    return f"""너는 초등학생 아침대화 앱의 따뜻한 대화 친구 '콩이'입니다.
+학생의 방금 답변을 읽고, 실제 교실 아침 대화처럼 자연스러운 한국어 피드백을 작성해 주세요.
+
+반드시 아래 JSON 하나만 출력하세요. 마크다운 코드블록은 쓰지 마세요.
+{{
+  "feedback": "학생 답변 내용에 맞춘 1~2문장 피드백",
+  "tone": "supportive | calm | encouraging | concerned",
+  "needsTeacherAttention": false
+}}
+
+규칙:
+- 학생이 실제로 말한 구체적인 내용을 한 가지 반영합니다.
+- 초등학생에게 말하듯 쉽고 부드럽게 말하되, 매번 "기록해둘게" 같은 표현을 반복하지 않습니다.
+- 길이는 45~90자 정도의 자연스러운 말투로 유지합니다.
+- 질문을 다시 설명하지 말고, 학생 답변에 바로 반응합니다.
+- 필요할 때만 선생님 확인을 말하고, 평범한 답변에는 편안한 인정으로 마무리합니다.
+- 의학적 진단, 심리 진단, 단정, 훈계, 해결책 강요는 하지 않습니다.
+- 학생이 "없어", "괜찮아", "보통"처럼 말하면 억지로 문제를 만들지 말고 짧게 인정합니다.
+- 자해, 폭력, 학대, 심한 두려움, 안전 위험이 보이면 needsTeacherAttention을 true로 둡니다.
+- 개인정보를 늘리거나 새 사실을 만들어내지 않습니다.
+
+현재 질문:
+- key: {compact_text(payload.get("questionKey"), 24)}
+- label: {compact_text(payload.get("questionLabel"), 40)}
+
+학생 답변:
+{compact_text(payload.get("answer"), 700)}
+
+규칙 기반 요약:
+{compact_text(payload.get("summary"), 160) or "없음"}
+
+이전 답변 요약:
+{previous_text or "없음"}
+
+카메라 표정 참고:
+{compact_text(payload.get("expression"), 80) or "없음"}"""
+
+
+def normalize_morning_feedback_result(result):
+    feedback = compact_text((result or {}).get("feedback"), 180)
+    return {
+        "feedback": feedback or "말해줘서 고마워. 네 이야기를 잘 들었어.",
+        "tone": compact_text((result or {}).get("tone"), 24) or "supportive",
+        "needsTeacherAttention": bool((result or {}).get("needsTeacherAttention")),
+    }
+
+
+def request_gemini_feedback(payload):
+    body = request_gemini_generate(GEMINI_MODEL, {
+        "contents": [{"parts": [{"text": build_morning_feedback_prompt(payload)}]}],
+        "generationConfig": {
+            "maxOutputTokens": 512,
+            "responseFormat": {
+                "text": {
+                    "mimeType": "application/json",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "feedback": {"type": "string"},
+                            "tone": {"type": "string"},
+                            "needsTeacherAttention": {"type": "boolean"},
+                        },
+                        "required": ["feedback", "tone", "needsTeacherAttention"],
+                    },
+                },
+            },
+        },
+    })
+    text = extract_gemini_text(body)
+    if not text:
+        raise RuntimeError("Gemini 응답에 피드백 텍스트가 없습니다.")
+    return normalize_morning_feedback_result(parse_json_object(text))
+
+
+def request_gemini_speech_audio(text):
+    speech_text = compact_text(text, 500)
+    if not speech_text:
+        raise RuntimeError("읽어줄 문장이 없습니다.")
+    body = request_gemini_generate(GEMINI_TTS_MODEL, {
+        "contents": [{
+            "parts": [{
+                "text": f"Say in Korean with a warm, friendly, unhurried elementary classroom buddy voice. Do not add extra words: {speech_text}"
+            }]
+        }],
+        "generationConfig": {
+            "responseModalities": ["AUDIO"],
+            "speechConfig": {
+                "voiceConfig": {
+                    "prebuiltVoiceConfig": {
+                        "voiceName": GEMINI_TTS_VOICE,
+                    },
+                },
+            },
+        },
+    })
+    audio = extract_gemini_inline_audio(body)
+    if not audio:
+        raise RuntimeError("Gemini TTS 응답에 오디오가 없습니다.")
+    if re.search(r"audio/wav", audio["mimeType"], re.I):
+        return {"audioContent": audio["data"], "mimeType": "audio/wav"}
+    wav_bytes = create_wav_bytes(base64.b64decode(audio["data"]))
+    return {"audioContent": base64.b64encode(wav_bytes).decode("ascii"), "mimeType": "audio/wav"}
+
+
 def is_allowed_origin(origin):
     if not origin:
         return False
@@ -397,7 +631,31 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(200, {"ok": True, "record": record})
 
         if parsed.path == "/api/morning-feedback":
-            return self.send_json(503, {"error": "맞춤 피드백 서버를 사용할 수 없어 기본 피드백을 사용합니다."})
+            answer = body.get("answer")
+            if not body.get("questionKey") or not body.get("questionLabel") or not isinstance(answer, str) or not answer.strip():
+                return self.send_json(400, {"error": "피드백을 만들 질문과 학생 답변을 포함해 주세요."})
+            if not GEMINI_API_KEY:
+                return self.send_json(503, {"error": "GEMINI_API_KEY가 설정되지 않았습니다."})
+            try:
+                feedback = request_gemini_feedback(body)
+                return self.send_json(200, {"feedback": feedback, "source": "gemini"})
+            except Exception as error:
+                print("Gemini 아침대화 맞춤 피드백 오류:", str(error))
+                return self.send_json(500, {"error": "맞춤 피드백을 만드는 중 오류가 발생했습니다."})
+
+        if parsed.path == "/api/morning-speech":
+            text = compact_text(body.get("text"), 500)
+            if not text:
+                return self.send_json(400, {"error": "읽어줄 문장을 포함해 주세요."})
+            if not GEMINI_API_KEY:
+                return self.send_json(503, {"error": "GEMINI_API_KEY가 설정되지 않았습니다."})
+            try:
+                audio = request_gemini_speech_audio(text)
+                audio["source"] = "gemini-tts"
+                return self.send_json(200, audio)
+            except Exception as error:
+                print("Gemini 아침대화 음성 생성 오류:", str(error))
+                return self.send_json(500, {"error": "아침대화 음성을 만드는 중 오류가 발생했습니다."})
 
         return self.send_json(404, {"error": "찾을 수 없는 API입니다."})
 

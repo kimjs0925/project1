@@ -113,7 +113,7 @@
     </section>
   </main>
 
-  <script src="morning-shared.js?v=20260615-sync-fallback"></script>
+  <script src="morning-shared.js?v=20260618-natural-speech"></script>
   <script>
     const {
       STUDENT_COUNT,
@@ -142,26 +142,30 @@
     const FACE_LANDMARKER_MODEL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task';
     const FACE_API_SCRIPT = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js';
     const FACE_API_MODELS = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
+    const VISION_EXPRESSION_INTERVAL = 18000;
+    const VISION_EXPRESSION_PERIODIC_INTERVAL = 45000;
+    const VISION_EXPRESSION_SIZE = 320;
     const expressionInfo = {
-      happy: { label: '밝음', mood: 'happy', message: '표정이 조금 밝아 보여. 좋은 마음이 있다면 나중에 더 들려줘도 좋아.' },
-      softSmile: { label: '은은한 미소', mood: 'happy', message: '살짝 웃는 표정이 보여. 괜찮은 기분이라면 그 마음도 기억해둘게.' },
-      neutral: { label: '차분함', mood: 'neutral', message: '표정이 차분해 보여. 지금 마음을 천천히 말해줘도 괜찮아.' },
-      calm: { label: '편안함', mood: 'neutral', message: '표정이 편안해 보여. 오늘 아침 마음을 천천히 들려줘.' },
-      focused: { label: '집중함', mood: 'neutral', message: '조금 집중한 표정처럼 보여. 생각나는 말을 천천히 골라도 괜찮아.' },
-      tired: { label: '피곤함', mood: 'tired', message: '눈이 조금 피곤해 보여. 오늘 몸이 무겁다면 편하게 말해줘.' },
-      sleepy: { label: '졸림', mood: 'tired', message: '조금 졸린 표정처럼 보여. 잠이 부족했는지 편하게 말해줘.' },
-      sad: { label: '속상함', mood: 'sad', message: '표정이 조금 속상해 보여. 혹시 마음에 걸리는 일이 있으면 편하게 말해줘.' },
-      lowMood: { label: '가라앉음', mood: 'sad', message: '마음이 조금 가라앉은 표정처럼 보여. 말하고 싶은 만큼만 이야기해도 괜찮아.' },
-      angry: { label: '답답함', mood: 'sad', message: '표정이 조금 답답해 보여. 무슨 일이 있었는지 천천히 말해도 괜찮아.' },
-      tense: { label: '긴장됨', mood: 'worried', message: '조금 긴장한 표정처럼 보여. 급하게 말하지 않아도 괜찮아.' },
-      worried: { label: '걱정됨', mood: 'worried', message: '조금 걱정되는 표정처럼 보여. 마음에 걸리는 일이 있으면 말해줘.' },
-      fearful: { label: '불안함', mood: 'worried', message: '조금 불안한 표정처럼 보여. 마음에 걸리는 일이 있으면 말해줘.' },
-      surprised: { label: '놀람', mood: 'worried', message: '조금 놀란 표정처럼 보여. 갑자기 있었던 일이 있는지 궁금해.' },
-      alert: { label: '놀란 기색', mood: 'worried', message: '살짝 놀란 표정이 보여. 갑자기 떠오른 일이 있으면 들려줘.' },
-      uneasy: { label: '어색함', mood: 'worried', message: '조금 어색하거나 망설이는 표정처럼 보여. 천천히 해도 괜찮아.' },
-      disgusted: { label: '불편함', mood: 'sad', message: '무언가 불편한 표정처럼 보여. 불편했던 일이 있으면 이야기해줘.' },
-      uncomfortable: { label: '불편함', mood: 'sad', message: '조금 불편한 표정처럼 보여. 불편했던 일이 있으면 편하게 말해줘.' }
+      happy: { label: '밝음', mood: 'happy', message: '카메라 신호로는 조금 밝아 보일 수 있어. 실제 마음은 네 말로 편하게 들려줘.' },
+      softSmile: { label: '은은한 미소', mood: 'happy', message: '살짝 편안한 신호가 보여. 맞는지는 천천히 이야기해줘도 좋아.' },
+      neutral: { label: '차분함', mood: 'neutral', message: '차분한 신호가 보여. 오늘 마음을 네 말로 천천히 들려줘.' },
+      calm: { label: '편안함', mood: 'neutral', message: '편안한 신호가 보여. 그래도 마음은 네 이야기를 먼저 믿고 들을게.' },
+      focused: { label: '집중함', mood: 'neutral', message: '생각을 고르는 중일 수 있겠다. 천천히 말해도 괜찮아.' },
+      tired: { label: '피곤함', mood: 'tired', message: '조금 피곤해 보일 수 있어. 몸이 무거우면 편하게 말해줘.' },
+      sleepy: { label: '졸림', mood: 'tired', message: '졸린 신호가 조금 보여. 잠이 부족했는지는 네가 편하게 알려줘.' },
+      sad: { label: '속상함', mood: 'sad', message: '조금 가라앉은 신호가 보여. 마음에 걸리는 일이 있으면 말하고 싶은 만큼만 말해줘.' },
+      lowMood: { label: '가라앉음', mood: 'sad', message: '마음이 가라앉아 보일 수 있어. 단정하지 않고 네 이야기를 먼저 들을게.' },
+      angry: { label: '답답함', mood: 'sad', message: '조금 답답한 신호가 보여. 무슨 일이 있었는지는 천천히 말해도 괜찮아.' },
+      tense: { label: '긴장됨', mood: 'worried', message: '긴장한 신호가 조금 보여. 급하게 대답하지 않아도 돼.' },
+      worried: { label: '걱정됨', mood: 'worried', message: '걱정이 있는 것처럼 보일 수 있어. 마음에 걸리는 일이 있으면 편하게 말해줘.' },
+      fearful: { label: '불안함', mood: 'worried', message: '불안한 신호가 조금 보여. 무섭거나 걱정되는 일이 있으면 선생님이 볼 수 있게 남겨둘게.' },
+      surprised: { label: '놀람', mood: 'worried', message: '조금 놀란 신호가 보여. 갑자기 떠오른 일이 있으면 천천히 들려줘.' },
+      alert: { label: '놀란 기색', mood: 'worried', message: '살짝 놀란 신호가 보여. 맞는지는 네 말로 알려줘도 좋아.' },
+      uneasy: { label: '어색함', mood: 'worried', message: '조금 망설이는 신호가 보여. 천천히 해도 괜찮아.' },
+      disgusted: { label: '불편함', mood: 'sad', message: '불편한 신호가 조금 보여. 불편했던 일이 있으면 말하고 싶은 만큼만 말해줘.' },
+      uncomfortable: { label: '불편함', mood: 'sad', message: '조금 불편해 보일 수 있어. 단정하지 않고 네 이야기를 먼저 들을게.' }
     };
+    const cameraSpeakMoods = new Set(['tired', 'sleepy', 'sad', 'lowMood', 'angry', 'tense', 'worried', 'fearful', 'uneasy', 'disgusted', 'uncomfortable']);
     const todayLabel = document.getElementById('todayLabel');
     const studentPickerBody = document.getElementById('studentPickerBody');
     const studentLoginForm = document.getElementById('studentLoginForm');
@@ -219,9 +223,17 @@
     let lastExpressionSaveAt = 0;
     let expressionGreetingDone = false;
     let expressionFeedbackCount = 0;
+    let expressionSamples = [];
+    let visionExpressionAvailable = true;
+    let visionExpressionPending = false;
+    let lastVisionExpressionAt = 0;
+    const visionExpressionCanvas = document.createElement('canvas');
     let microphonePermissionPrepared = false;
     let feedbackPending = false;
     let kongiVoice = null;
+    let currentSpeechAudio = null;
+    let currentSpeechAudioUrl = '';
+    let speechRequestToken = 0;
 
     function formatToday() {
       return new Date().toLocaleDateString('ko-KR', {
@@ -268,12 +280,15 @@
       recognitionActive = false;
       recognitionStarting = false;
       recognitionLastError = '';
+      speechRequestToken += 1;
+      stopCurrentSpeechAudio();
       if ('speechSynthesis' in window) window.speechSynthesis.cancel();
 
       record = createRecord(selectedStudentNo);
       currentQuestionIndex = 0;
       expressionGreetingDone = false;
       expressionFeedbackCount = 0;
+      expressionSamples = [];
       lastExpressionMood = '';
       lastSavedExpressionMood = '';
       lastExpressionSaveAt = 0;
@@ -341,9 +356,75 @@
         || null;
     }
 
-    function speak(text, onEnd) {
-      lastBotSpeechText = String(text || '');
-      botSpeechActive = true;
+    function stopCurrentSpeechAudio() {
+      if (currentSpeechAudio) {
+        currentSpeechAudio.onended = null;
+        currentSpeechAudio.onerror = null;
+        currentSpeechAudio.pause();
+        currentSpeechAudio = null;
+      }
+      if (currentSpeechAudioUrl) {
+        window.URL.revokeObjectURL(currentSpeechAudioUrl);
+        currentSpeechAudioUrl = '';
+      }
+    }
+
+    function base64ToBlob(base64, mimeType) {
+      const binary = window.atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return new Blob([bytes], { type: mimeType || 'audio/wav' });
+    }
+
+    async function playGeminiSpeech(text, token, onEnd) {
+      if (!window.fetch || !window.Audio || !window.Blob || !window.atob) return false;
+      let fallbackStarted = false;
+
+      try {
+        const response = await fetch('/api/morning-speech', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+        if (!response.ok) throw new Error('gemini-tts-unavailable');
+
+        const data = await response.json();
+        if (!data?.audioContent) throw new Error('gemini-tts-empty');
+        if (token !== speechRequestToken) return true;
+
+        stopCurrentSpeechAudio();
+        const blob = base64ToBlob(data.audioContent, data.mimeType || 'audio/wav');
+        const audioUrl = window.URL.createObjectURL(blob);
+        const audio = new Audio(audioUrl);
+        const fallbackFromAudio = () => {
+          if (fallbackStarted || token !== speechRequestToken) return;
+          fallbackStarted = true;
+          stopCurrentSpeechAudio();
+          speakWithBrowserVoice(text, onEnd);
+        };
+        currentSpeechAudio = audio;
+        currentSpeechAudioUrl = audioUrl;
+        audio.onended = () => {
+          if (fallbackStarted || token !== speechRequestToken) return;
+          stopCurrentSpeechAudio();
+          botSpeechActive = false;
+          lastBotSpeechEndedAt = Date.now();
+          if (typeof onEnd === 'function') onEnd();
+        };
+        audio.onerror = fallbackFromAudio;
+        await audio.play();
+        return true;
+      } catch (error) {
+        if (fallbackStarted) return true;
+        console.warn('Gemini 음성을 사용할 수 없어 기본 음성으로 이어갑니다.', error);
+        stopCurrentSpeechAudio();
+        return false;
+      }
+    }
+
+    function speakWithBrowserVoice(text, onEnd) {
       if (!('speechSynthesis' in window)) {
         botSpeechActive = false;
         lastBotSpeechEndedAt = Date.now();
@@ -354,8 +435,8 @@
       utterance.lang = 'ko-KR';
       kongiVoice = kongiVoice || chooseKongiVoice();
       if (kongiVoice) utterance.voice = kongiVoice;
-      utterance.rate = 1.06;
-      utterance.pitch = 1.45;
+      utterance.rate = 0.92;
+      utterance.pitch = 1.04;
       utterance.volume = 1;
       utterance.onend = () => {
         botSpeechActive = false;
@@ -369,6 +450,27 @@
       };
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(utterance);
+    }
+
+    function speak(text, onEnd) {
+      const speechText = String(text || '');
+      if (!speechText.trim()) {
+        botSpeechActive = false;
+        lastBotSpeechEndedAt = Date.now();
+        if (typeof onEnd === 'function') window.setTimeout(onEnd, 100);
+        return;
+      }
+      const token = speechRequestToken + 1;
+      speechRequestToken = token;
+      lastBotSpeechText = speechText;
+      botSpeechActive = true;
+      stopCurrentSpeechAudio();
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+
+      playGeminiSpeech(speechText, token, onEnd).then(played => {
+        if (token !== speechRequestToken || played) return;
+        speakWithBrowserVoice(speechText, onEnd);
+      });
     }
 
     function renderStudentGrid() {}
@@ -907,6 +1009,108 @@
       ctx.fillText(text, x + 8, Math.max(18, y - 12));
     }
 
+    function getExpressionEngineWeight(engineLabel) {
+      if (engineLabel === 'Vision AI') return 1.05;
+      if (engineLabel === 'MediaPipe') return 0.95;
+      return 0.82;
+    }
+
+    function smoothExpressionResult(mood, score, engineLabel) {
+      const now = Date.now();
+      expressionSamples = expressionSamples
+        .filter(item => now - item.time < 7500)
+        .concat({
+          mood,
+          score: clampScore(score),
+          engineLabel,
+          time: now
+        });
+
+      const grouped = expressionSamples.reduce((result, item) => {
+        const key = expressionInfo[item.mood] ? item.mood : 'neutral';
+        if (!result[key]) result[key] = { total: 0, count: 0, max: 0 };
+        const weight = getExpressionEngineWeight(item.engineLabel) * Math.max(0.35, item.score);
+        result[key].total += weight;
+        result[key].count += 1;
+        result[key].max = Math.max(result[key].max, item.score);
+        return result;
+      }, {});
+
+      const ranked = Object.entries(grouped).sort((a, b) => b[1].total - a[1].total);
+      if (!ranked.length) return { mood, score: clampScore(score) };
+
+      const [topMood, top] = ranked[0];
+      const second = ranked[1]?.[1]?.total || 0;
+      const stableScore = clampScore((top.total / top.count) * 0.72 + top.max * 0.18 + Math.min(0.1, (top.total - second) * 0.04));
+      if (ranked.length > 1 && top.total - second < 0.12 && stableScore < 0.62) {
+        return { mood: 'calm', score: 0.48 };
+      }
+      return { mood: topMood, score: stableScore };
+    }
+
+    function captureVisionExpressionFrame() {
+      if (!cameraVideo.videoWidth || !cameraVideo.videoHeight) return null;
+      const width = VISION_EXPRESSION_SIZE;
+      const height = Math.max(1, Math.round(width * cameraVideo.videoHeight / cameraVideo.videoWidth));
+      visionExpressionCanvas.width = width;
+      visionExpressionCanvas.height = height;
+      const ctx = visionExpressionCanvas.getContext('2d');
+      ctx.drawImage(cameraVideo, 0, 0, width, height);
+      return {
+        imageData: visionExpressionCanvas.toDataURL('image/jpeg', 0.68),
+        width,
+        height
+      };
+    }
+
+    function getVisionExpressionBox(box) {
+      if (!box || !cameraVideo.videoWidth || !cameraVideo.videoHeight) return null;
+      return {
+        x: box.x * cameraVideo.videoWidth,
+        y: box.y * cameraVideo.videoHeight,
+        width: box.width * cameraVideo.videoWidth,
+        height: box.height * cameraVideo.videoHeight
+      };
+    }
+
+    async function analyzeVisionExpression(reason = '') {
+      if (!visionExpressionAvailable || visionExpressionPending || !cameraStream || cameraVideo.readyState < 2) return false;
+      const now = Date.now();
+      const minInterval = reason === 'periodic'
+        ? VISION_EXPRESSION_PERIODIC_INTERVAL
+        : VISION_EXPRESSION_INTERVAL;
+      if (now - lastVisionExpressionAt < minInterval) return false;
+      const frame = captureVisionExpressionFrame();
+      if (!frame) return false;
+
+      visionExpressionPending = true;
+      lastVisionExpressionAt = now;
+      try {
+        const response = await fetch('/api/vision-expression', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(frame)
+        });
+        if (response.status === 404 || response.status === 503) {
+          visionExpressionAvailable = false;
+          return false;
+        }
+        if (!response.ok) throw new Error('vision-expression-unavailable');
+
+        const data = await response.json();
+        if (!data?.detected || !expressionInfo[data.mood]) return false;
+        const score = clampScore(Number(data.score) || 0.42);
+        if (score < 0.38 && reason !== 'no-face') return false;
+        handleExpressionResult(data.mood, score, getVisionExpressionBox(data.box), 'Vision AI');
+        return true;
+      } catch (error) {
+        console.warn('Cloud Vision 표정 분석을 사용할 수 없어 로컬 분석으로 이어갑니다.', error);
+        return false;
+      } finally {
+        visionExpressionPending = false;
+      }
+    }
+
     function saveExpressionObservation(mood, score) {
       if (!record) return;
       const now = Date.now();
@@ -933,13 +1137,13 @@
 
     function speakExpressionFeedback(mood, score) {
       const info = expressionInfo[mood] || expressionInfo.neutral;
-      const speaking = 'speechSynthesis' in window && window.speechSynthesis.speaking;
+      const speaking = botSpeechActive || ('speechSynthesis' in window && window.speechSynthesis.speaking);
       const now = Date.now();
       const repeatedMood = lastExpressionMood === mood;
 
-      if (score < 0.46 || recognitionActive || speaking || autoListenTimer) return;
+      if (!cameraSpeakMoods.has(mood) || score < 0.68 || recognitionActive || speaking || autoListenTimer) return;
       if (expressionFeedbackCount > 0) {
-        if (repeatedMood || now - lastExpressionMessageAt < 45000 || expressionFeedbackCount >= 3) return;
+        if (repeatedMood || now - lastExpressionMessageAt < 90000 || expressionFeedbackCount >= 2) return;
       }
 
       lastExpressionMood = mood;
@@ -955,12 +1159,14 @@
     }
 
     function handleExpressionResult(mood, score, box, engineLabel) {
-      const safeMood = expressionInfo[mood] ? mood : 'neutral';
+      const smoothed = smoothExpressionResult(expressionInfo[mood] ? mood : 'neutral', score, engineLabel);
+      const safeMood = expressionInfo[smoothed.mood] ? smoothed.mood : 'neutral';
+      const safeScore = smoothed.score;
       const info = expressionInfo[safeMood];
-      drawExpressionBox(box, info.label, score);
-      cameraStatus.textContent = `${engineLabel} 표정 신호: ${info.label} ${Math.round(score * 100)}%`;
-      saveExpressionObservation(safeMood, score);
-      speakExpressionFeedback(safeMood, score);
+      drawExpressionBox(box, info.label, safeScore);
+      cameraStatus.textContent = `${engineLabel} 표정 보조 신호: ${info.label} ${Math.round(safeScore * 100)}% · 마음 판단은 대화가 기준이에요.`;
+      saveExpressionObservation(safeMood, safeScore);
+      speakExpressionFeedback(safeMood, safeScore);
     }
 
     async function analyzeMediaPipeExpression() {
@@ -971,11 +1177,13 @@
       if (!landmarks || !blendshapes.length) {
         clearExpressionOverlay();
         cameraStatus.textContent = '얼굴을 찾는 중이에요.';
+        await analyzeVisionExpression('no-face');
         return;
       }
 
       const [mood, score] = inferExpressionFromBlendshapes(blendshapes);
       handleExpressionResult(mood, score, getLandmarkBox(landmarks), 'MediaPipe');
+      await analyzeVisionExpression(score < 0.62 ? 'low-score' : 'periodic');
     }
 
     async function analyzeFaceApiExpression() {
@@ -986,11 +1194,13 @@
       if (!result) {
         clearExpressionOverlay();
         cameraStatus.textContent = '얼굴을 찾는 중이에요.';
+        await analyzeVisionExpression('no-face');
         return;
       }
 
       const [expression, score] = inferExpressionFromFaceApi(result.expressions);
       handleExpressionResult(expression, score, result.detection.box, '기본');
+      await analyzeVisionExpression(score < 0.62 ? 'low-score' : 'periodic');
     }
 
     async function analyzeExpression() {
@@ -1100,52 +1310,52 @@
 
       if (key === 'sleep') {
         if (/부족|피곤|못잤|잠이안|졸려|늦게|자주깼|설쳤/.test(summary + text)) {
-          return '잠이 부족했구나. 아침부터 몸이 무거울 수 있겠다. 오늘은 무리하지 말고 선생님께도 피곤하다고 알려두면 좋아.';
+          return '잠이 좀 불편했구나. 오늘 아침은 천천히 몸을 깨워보자.';
         }
         if (/양호|잘잤|푹잤|충분|좋았/.test(summary + text)) {
-          return '푹 잤다니 다행이야. 몸이 조금 더 가볍게 하루를 시작할 수 있겠다.';
+          return '푹 잤구나. 오늘 아침이 조금 가볍게 느껴지겠다.';
         }
-        return '잠 이야기를 들려줘서 고마워. 몸 상태는 하루 기분에도 영향을 줄 수 있어서 잘 기억해둘게.';
+        return '잠 이야기도 들었어. 오늘 몸 느낌을 살피면서 시작하자.';
       }
 
       if (key === 'breakfast') {
         if (/먹지않음|안먹|못먹|굶/.test(summary + text)) {
-          return '아침을 못 먹었구나. 배가 고프면 집중하기 어려울 수 있어. 필요하면 선생님께 조용히 말해도 괜찮아.';
+          return '아침을 못 먹었구나. 배고프면 선생님께 살짝 말해줘.';
         }
         if (/먹음|조금먹음|먹었|밥|빵|시리얼|과일|우유/.test(summary + text)) {
-          return '아침을 챙겼다니 좋아. 오늘 움직일 힘을 조금 얻었겠다.';
+          return '아침을 챙겼구나. 오늘 움직일 힘이 조금 생겼겠다.';
         }
-        return '아침밥 이야기도 알려줘서 고마워. 선생님이 네 하루 상태를 살피는 데 도움이 돼.';
+        return '아침 이야기도 들었어. 지금 몸 느낌을 잘 살펴보자.';
       }
 
       if (key === 'special') {
         if (/없음|없어|없었|별일없|괜찮/.test(summary + text)) {
-          return '특별한 일이 없었다니 다행이야. 아무 일 없는 아침도 좋은 기록이야.';
+          return '특별한 일이 없었다면 다행이야. 편하게 시작하자.';
         }
-        return '그런 일이 있었구나. 말해줘서 고마워. 혼자만 알고 있지 않아도 되게 선생님이 확인할 수 있게 정리해둘게.';
+        return '그 일이 마음에 남아 있었구나. 선생님도 살펴볼 수 있게 할게.';
       }
 
       if (key === 'mood') {
         if (/밝음|좋|기뻐|행복|신나|재밌|설레/.test(summary + text)) {
-          return '좋은 기분이라니 나도 기뻐. 오늘 그 좋은 마음이 조금 더 오래 갔으면 좋겠다.';
+          return '좋은 기분으로 시작해서 반가워. 그 느낌이 이어지면 좋겠다.';
         }
         if (/피곤|속상|슬퍼|우울|답답|화남|짜증|걱정|불안|무서|긴장|힘들/.test(summary + text)) {
-          return '마음이 편하지 않았구나. 그렇게 느끼는 건 이상한 일이 아니야. 이야기해줘서 고마워.';
+          return '마음이 편하지만은 않았구나. 오늘은 천천히 가도 괜찮아.';
         }
         if (/보통|괜찮|그냥|모르겠/.test(summary + text)) {
-          return '보통이라고 말해줘도 충분해. 마음이 딱 한 단어로 정리되지 않을 때도 있으니까.';
+          return '보통이라고 말해줘도 충분해. 그런 날도 있지.';
         }
-        return '지금 기분을 알려줘서 고마워. 콩이가 조심스럽게 기억해둘게.';
+        return '지금 마음을 들었어. 그 마음에서 천천히 시작해보자.';
       }
 
       if (key === 'conflict') {
         if (/없음|없어|없었|별일없|괜찮/.test(summary + text)) {
-          return '친구와 특별한 갈등이 없었다니 다행이야. 오늘도 편안하게 지낼 수 있으면 좋겠다.';
+          return '친구 일로 마음에 남은 게 없다니 다행이야.';
         }
-        return '친구와의 일이 마음에 남았구나. 속상했을 수 있겠다. 선생님이 상황을 보고 도와줄 수 있게 잘 정리해둘게.';
+        return '친구 일이 마음에 남았구나. 선생님도 살펴볼 수 있게 할게.';
       }
 
-      return '말해줘서 고마워. 네 이야기를 소중하게 기록해둘게.';
+      return '네 이야기 잘 들었어. 고마워.';
     }
 
     function getPreviousAnswersForFeedback() {

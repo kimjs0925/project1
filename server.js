@@ -8,6 +8,16 @@ import os from 'os';
 
 dotenv.config();
 dotenv.config({ path: path.resolve(process.cwd(), 'openaiapi.env') });
+dotenv.config({ path: path.resolve(process.cwd(), 'google.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '제미나이api.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '..', '아침대화', 'google.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '..', '아침대화', '제미나이api.env') });
+if (process.env.GOOGLE_ENV_PATH) {
+  dotenv.config({ path: path.resolve(process.env.GOOGLE_ENV_PATH) });
+}
+if (process.env.GEMINI_ENV_PATH) {
+  dotenv.config({ path: path.resolve(process.env.GEMINI_ENV_PATH) });
+}
 const app = express();
 const port = process.env.PORT || 3000;
 const openaiSecretPath = path.resolve(process.cwd(), 'openaiapi.env');
@@ -25,9 +35,60 @@ function loadOpenAIApiKey() {
   return (match ? match[1] : raw).trim();
 }
 
+function readSecretValueFromFile(filePath, names = []) {
+  try {
+    if (!filePath || !fs.existsSync(filePath)) return '';
+    const raw = fs.readFileSync(filePath, 'utf8').trim();
+    if (!raw) return '';
+    for (const name of names) {
+      const match = raw.match(new RegExp(`^\\s*${name}\\s*=\\s*(.+)\\s*$`, 'm'));
+      if (match) return match[1].trim().replace(/^["']|["']$/g, '');
+    }
+    if (!raw.includes('=') && !raw.includes('\n')) return raw;
+  } catch (error) {
+    return '';
+  }
+  return '';
+}
+
+function loadGoogleApiKeyFromFiles() {
+  const secretPaths = [
+    path.resolve(process.cwd(), '제미나이api.env'),
+    path.resolve(process.cwd(), 'google.env'),
+    path.resolve(process.cwd(), '..', '아침대화', '제미나이api.env'),
+    path.resolve(process.cwd(), '..', '아침대화', 'google.env'),
+    process.env.GEMINI_ENV_PATH ? path.resolve(process.env.GEMINI_ENV_PATH) : '',
+    process.env.GOOGLE_ENV_PATH ? path.resolve(process.env.GOOGLE_ENV_PATH) : ''
+  ];
+  for (const filePath of secretPaths) {
+    const value = readSecretValueFromFile(filePath, [
+      'GEMINI_API_KEY',
+      'GOOGLE_API_KEY',
+      'GOOGLE_CLOUD_VISION_API_KEY',
+      'CLOUD_VISION_API_KEY',
+      'VISION_API_KEY'
+    ]);
+    if (value) return value;
+  }
+  return '';
+}
+
 const openaiApiKey = loadOpenAIApiKey();
 const openaiModel = process.env.OPENAI_MODEL || 'gpt-5-mini';
 const openaiApiUrl = 'https://api.openai.com/v1/responses';
+const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || loadGoogleApiKeyFromFiles();
+const geminiModel = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
+const geminiTtsModel = process.env.GEMINI_TTS_MODEL || 'gemini-3.1-flash-tts-preview';
+const geminiTtsVoice = process.env.GEMINI_TTS_VOICE || 'Sulafat';
+const visionApiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY
+  || process.env.CLOUD_VISION_API_KEY
+  || process.env.VISION_API_KEY
+  || process.env.GOOGLE_API_KEY
+  || process.env.GEMINI_API_KEY
+  || geminiApiKey
+  || '';
+const visionAccessToken = process.env.GOOGLE_CLOUD_VISION_ACCESS_TOKEN || '';
+const visionApiUrl = 'https://vision.googleapis.com/v1/images:annotate';
 const allowedCorsOrigins = new Set([
   'null',
   'http://localhost:3000',
@@ -560,6 +621,59 @@ function extractOpenAIText(body) {
   return '';
 }
 
+function extractGeminiText(body) {
+  if (typeof body.text === 'string') return body.text;
+  if (Array.isArray(body.candidates)) {
+    return body.candidates.flatMap(candidate =>
+      Array.isArray(candidate.content?.parts)
+        ? candidate.content.parts.map(part => part.text || '').filter(Boolean)
+        : []
+    ).join('\n').trim();
+  }
+  return '';
+}
+
+function extractGeminiInlineAudio(body) {
+  if (!Array.isArray(body.candidates)) return null;
+  for (const candidate of body.candidates) {
+    const parts = Array.isArray(candidate.content?.parts) ? candidate.content.parts : [];
+    for (const part of parts) {
+      const inlineData = part.inlineData || part.inline_data;
+      if (inlineData?.data) {
+        return {
+          data: inlineData.data,
+          mimeType: inlineData.mimeType || inlineData.mime_type || 'audio/pcm;rate=24000'
+        };
+      }
+    }
+  }
+  return null;
+}
+
+function createWavBuffer(pcmBuffer, sampleRate = 24000, channels = 1, bitsPerSample = 16) {
+  const headerSize = 44;
+  const byteRate = sampleRate * channels * bitsPerSample / 8;
+  const blockAlign = channels * bitsPerSample / 8;
+  const wav = Buffer.alloc(headerSize + pcmBuffer.length);
+
+  wav.write('RIFF', 0);
+  wav.writeUInt32LE(36 + pcmBuffer.length, 4);
+  wav.write('WAVE', 8);
+  wav.write('fmt ', 12);
+  wav.writeUInt32LE(16, 16);
+  wav.writeUInt16LE(1, 20);
+  wav.writeUInt16LE(channels, 22);
+  wav.writeUInt32LE(sampleRate, 24);
+  wav.writeUInt32LE(byteRate, 28);
+  wav.writeUInt16LE(blockAlign, 32);
+  wav.writeUInt16LE(bitsPerSample, 34);
+  wav.write('data', 36);
+  wav.writeUInt32LE(pcmBuffer.length, 40);
+  pcmBuffer.copy(wav, headerSize);
+
+  return wav;
+}
+
 function parseJsonObject(text) {
   const trimmed = String(text || '').trim();
   try {
@@ -607,6 +721,273 @@ async function requestOpenAIJson(prompt) {
   }
 
   return parseJsonObject(outputText);
+}
+
+async function requestGeminiSpeechAudio(text) {
+  if (!geminiApiKey) {
+    throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.');
+  }
+
+  const speechText = compactText(text, 500);
+  if (!speechText) {
+    throw new Error('읽어줄 문장이 없습니다.');
+  }
+
+  const model = geminiTtsModel.replace(/^models\//, '');
+  const response = await request(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+    {
+      method: 'POST',
+      headers: {
+        'x-goog-api-key': geminiApiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{
+              text: buildGeminiTtsPrompt(speechText)
+            }]
+          }
+        ],
+        generationConfig: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: {
+                voiceName: geminiTtsVoice
+              }
+            }
+          }
+        }
+      })
+    }
+  );
+
+  const bodyText = await response.body.text();
+  let body;
+  try {
+    body = JSON.parse(bodyText);
+  } catch (error) {
+    throw new Error(`Gemini TTS 응답을 읽지 못했습니다: ${bodyText.slice(0, 200)}`);
+  }
+
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    throw new Error(body.error?.message || 'Gemini TTS API 요청에 실패했습니다.');
+  }
+
+  const audio = extractGeminiInlineAudio(body);
+  if (!audio?.data) {
+    throw new Error('Gemini TTS 응답에 오디오가 없습니다.');
+  }
+
+  if (/audio\/wav/i.test(audio.mimeType)) {
+    return { audioContent: audio.data, mimeType: 'audio/wav' };
+  }
+
+  const wavBuffer = createWavBuffer(Buffer.from(audio.data, 'base64'));
+  return { audioContent: wavBuffer.toString('base64'), mimeType: 'audio/wav' };
+}
+
+async function requestGeminiJson(prompt) {
+  if (!geminiApiKey) {
+    throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.');
+  }
+
+  let lastError = null;
+  for (const model of getGeminiFeedbackModels()) {
+    const response = await request(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+      {
+        method: 'POST',
+        headers: {
+          'x-goog-api-key': geminiApiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: prompt }]
+            }
+          ],
+          generationConfig: {
+            maxOutputTokens: 64,
+            temperature: 0.35,
+            topP: 0.8,
+            responseMimeType: 'application/json',
+            responseSchema: buildGeminiFeedbackSchema()
+          }
+        })
+      }
+    );
+
+    const bodyText = await response.body.text();
+    let body;
+    try {
+      body = JSON.parse(bodyText);
+    } catch (error) {
+      lastError = new Error(`Gemini 응답을 읽지 못했습니다: ${bodyText.slice(0, 200)}`);
+      continue;
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      lastError = new Error(`[${model}] ${body.error?.message || 'Gemini API 요청에 실패했습니다.'}`);
+      continue;
+    }
+
+    const outputText = extractGeminiText(body);
+    if (!outputText) {
+      lastError = new Error(`[${model}] Gemini 응답에 피드백 텍스트가 없습니다.`);
+      continue;
+    }
+
+    try {
+      return parseJsonObject(outputText);
+    } catch (error) {
+      lastError = new Error(`[${model}] Gemini JSON 파싱 실패: ${error.message}`);
+    }
+  }
+
+  throw lastError || new Error('Gemini API 요청에 실패했습니다.');
+}
+
+function normalizeVisionImageContent(value) {
+  let content = String(value || '').trim();
+  const dataUrlMatch = content.match(/^data:image\/[a-z0-9.+-]+;base64,(.+)$/i);
+  if (dataUrlMatch) content = dataUrlMatch[1];
+  content = content.replace(/\s+/g, '');
+  if (!content || content.length > 900000 || !/^[A-Za-z0-9+/=]+$/.test(content)) return '';
+  return content;
+}
+
+function visionLikelihoodScore(value) {
+  const scores = {
+    UNKNOWN: 0,
+    VERY_UNLIKELY: 0.04,
+    UNLIKELY: 0.14,
+    POSSIBLE: 0.42,
+    LIKELY: 0.72,
+    VERY_LIKELY: 0.92
+  };
+  return scores[String(value || '').toUpperCase()] ?? 0;
+}
+
+function clampVisionScore(value) {
+  return Math.max(0.3, Math.min(0.96, Number(value) || 0));
+}
+
+function getVisionBox(face, imageWidth, imageHeight) {
+  const vertices = face?.fdBoundingPoly?.vertices || face?.boundingPoly?.vertices || [];
+  const points = vertices
+    .map(point => ({
+      x: Number(point.x),
+      y: Number(point.y)
+    }))
+    .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+  if (!points.length || !imageWidth || !imageHeight) return null;
+
+  const minX = Math.max(0, Math.min(...points.map(point => point.x)));
+  const maxX = Math.min(imageWidth, Math.max(...points.map(point => point.x)));
+  const minY = Math.max(0, Math.min(...points.map(point => point.y)));
+  const maxY = Math.min(imageHeight, Math.max(...points.map(point => point.y)));
+
+  return {
+    x: minX / imageWidth,
+    y: minY / imageHeight,
+    width: Math.max(0.01, (maxX - minX) / imageWidth),
+    height: Math.max(0.01, (maxY - minY) / imageHeight)
+  };
+}
+
+function inferVisionExpression(face) {
+  const detection = Number(face?.detectionConfidence || 0);
+  const blur = visionLikelihoodScore(face?.blurredLikelihood);
+  const underExposed = visionLikelihoodScore(face?.underExposedLikelihood);
+  const joy = visionLikelihoodScore(face?.joyLikelihood);
+  const sorrow = visionLikelihoodScore(face?.sorrowLikelihood);
+  const anger = visionLikelihoodScore(face?.angerLikelihood);
+  const surprise = visionLikelihoodScore(face?.surpriseLikelihood);
+  const signals = [
+    ['joy', joy],
+    ['sorrow', sorrow],
+    ['anger', anger],
+    ['surprise', surprise]
+  ].sort((a, b) => b[1] - a[1]);
+  const [top, likelihood] = signals[0];
+  const qualityPenalty = Math.max(blur, underExposed) * 0.18;
+  const score = clampVisionScore(likelihood * 0.76 + detection * 0.24 - qualityPenalty);
+
+  if (likelihood < 0.32) {
+    return { mood: detection > 0.74 ? 'calm' : 'focused', score: clampVisionScore(detection || 0.42) };
+  }
+  if (top === 'joy') return { mood: likelihood > 0.74 ? 'happy' : 'softSmile', score };
+  if (top === 'sorrow') return { mood: likelihood > 0.74 ? 'sad' : 'lowMood', score };
+  if (top === 'anger') return { mood: likelihood > 0.62 ? 'angry' : 'tense', score };
+  if (top === 'surprise') return { mood: likelihood > 0.62 ? 'surprised' : 'alert', score };
+  return { mood: 'calm', score: clampVisionScore(detection || 0.42) };
+}
+
+async function requestVisionExpression(imageContent, imageWidth, imageHeight) {
+  if (!visionAccessToken && !visionApiKey) {
+    throw new Error('Cloud Vision API 키가 설정되지 않았습니다.');
+  }
+
+  const headers = { 'Content-Type': 'application/json' };
+  let url = visionApiUrl;
+  if (visionAccessToken) {
+    headers.Authorization = `Bearer ${visionAccessToken}`;
+  } else {
+    url += `?key=${encodeURIComponent(visionApiKey)}`;
+  }
+
+  const response = await request(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      requests: [
+        {
+          image: { content: imageContent },
+          features: [{ type: 'FACE_DETECTION', maxResults: 1 }]
+        }
+      ]
+    })
+  });
+
+  const bodyText = await response.body.text();
+  let body;
+  try {
+    body = JSON.parse(bodyText);
+  } catch (error) {
+    throw new Error(`Cloud Vision 응답을 읽지 못했습니다: ${bodyText.slice(0, 200)}`);
+  }
+
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    throw new Error(body.error?.message || 'Cloud Vision API 요청에 실패했습니다.');
+  }
+
+  const result = body.responses?.[0] || {};
+  if (result.error) {
+    throw new Error(result.error.message || 'Cloud Vision 얼굴 감지에 실패했습니다.');
+  }
+
+  const face = result.faceAnnotations?.[0];
+  if (!face) return { detected: false, source: 'google-vision' };
+
+  const expression = inferVisionExpression(face);
+  return {
+    detected: true,
+    source: 'google-vision',
+    mood: expression.mood,
+    score: expression.score,
+    box: getVisionBox(face, imageWidth, imageHeight),
+    detectionConfidence: Number(face.detectionConfidence || 0),
+    likelihoods: {
+      joy: face.joyLikelihood || 'UNKNOWN',
+      sorrow: face.sorrowLikelihood || 'UNKNOWN',
+      anger: face.angerLikelihood || 'UNKNOWN',
+      surprise: face.surpriseLikelihood || 'UNKNOWN'
+    }
+  };
 }
 
 function buildConflictAnalysisPrompt(text) {
@@ -689,10 +1070,123 @@ function compactText(value, maxLength = 600) {
     .slice(0, maxLength);
 }
 
-function normalizeMorningFeedbackResult(result) {
-  const feedback = compactText(result?.feedback, 180);
+function normalizeGeminiModelName(value) {
+  return String(value || '').trim().replace(/^models\//, '');
+}
+
+function getGeminiFeedbackModels() {
+  const candidates = [
+    geminiModel,
+    'gemini-3.1-flash-lite',
+    'gemini-2.5-flash-lite',
+    'gemini-flash-lite-latest',
+    'gemini-2.5-flash',
+    'gemini-3-flash-preview',
+    'gemini-flash-latest'
+  ].map(normalizeGeminiModelName).filter(Boolean);
+  return [...new Set(candidates)];
+}
+
+function buildGeminiFeedbackSchema() {
   return {
-    feedback: feedback || '말해줘서 고마워. 네 이야기를 잘 기억해둘게.',
+    type: 'object',
+    properties: {
+      feedback: { type: 'string' },
+      tone: { type: 'string' },
+      needsTeacherAttention: { type: 'boolean' }
+    },
+    required: ['feedback', 'tone', 'needsTeacherAttention']
+  };
+}
+
+function buildGeminiTtsPrompt(text) {
+  const speechText = compactText(text, 500);
+  return [
+    'Say the following Korean line exactly as a warm, natural one-on-one classroom chat.',
+    'Use a relaxed pace, soft friendly tone, and natural short pauses. Do not sound like an announcer.',
+    'Do not add greetings, explanations, labels, or extra words.',
+    speechText
+  ].join('\n');
+}
+
+function buildMorningFeedbackFallback(payload = {}) {
+  const key = compactText(payload.questionKey, 24);
+  const text = compactText(`${payload.summary || ''} ${payload.answer || ''}`, 260).replace(/\s+/g, '');
+
+  if (key === 'sleep') {
+    if (/부족|피곤|못잤|잠이안|졸려|늦게|자주깼|설쳤/.test(text)) {
+      return '늦게 자서 피곤하구나. 오늘은 천천히 시작해도 괜찮아.';
+    }
+    if (/양호|잘잤|푹잤|충분|좋았/.test(text)) {
+      return '푹 잤구나. 오늘 아침이 조금 가볍겠다.';
+    }
+    return '잠 이야기도 들었어. 오늘 몸 느낌을 살피며 시작하자.';
+  }
+
+  if (key === 'breakfast') {
+    if (/먹지않음|안먹|못먹|굶/.test(text)) {
+      return '아침을 못 먹었구나. 배고프면 선생님께 살짝 말해줘.';
+    }
+    if (/먹음|조금먹음|먹었|밥|빵|시리얼|과일|우유/.test(text)) {
+      return '아침을 챙겼구나. 오늘 움직일 힘이 조금 생겼겠다.';
+    }
+    return '아침 이야기도 들었어. 몸 느낌을 같이 살펴보자.';
+  }
+
+  if (key === 'special') {
+    if (/없음|없어|없었|별일없|괜찮/.test(text)) {
+      return '특별한 일이 없었다면 다행이야. 편하게 시작하자.';
+    }
+    return '그 일이 마음에 남아 있었구나. 선생님도 살펴볼게.';
+  }
+
+  if (key === 'mood') {
+    if (/밝음|좋|기뻐|행복|신나|재밌|설레/.test(text)) {
+      return '좋은 기분으로 시작해서 반가워. 그 느낌이 이어지면 좋겠다.';
+    }
+    if (/피곤|속상|슬퍼|우울|답답|화남|짜증|걱정|불안|무서|긴장|힘들/.test(text)) {
+      return '마음이 편하지만은 않았구나. 오늘은 천천히 가도 괜찮아.';
+    }
+    if (/보통|괜찮|그냥|모르겠/.test(text)) {
+      return '보통이라고 말해줘도 충분해. 그런 날도 있지.';
+    }
+    return '지금 마음을 들었어. 그 마음에서 천천히 시작해보자.';
+  }
+
+  if (key === 'conflict') {
+    if (/없음|없어|없었|별일없|괜찮/.test(text)) {
+      return '친구 일로 마음에 남은 게 없다니 다행이야.';
+    }
+    return '친구 일이 마음에 남았구나. 선생님도 살펴볼게.';
+  }
+
+  return '네 이야기 잘 들었어. 고마워.';
+}
+
+function cleanMorningFeedbackText(value, payload = {}) {
+  const text = compactText(value, 140).replace(/^["']|["']$/g, '');
+  const speculative = /무슨 .*있었나|아마|혹시 .*일지도|것 같|보네|보인다|보여|짐작|추측/.test(text);
+  const formal = /컨디션 조절|건강 관리|무엇보다 중요|해보는 건 어떨|하길 바라|무리하지|힘내자|걱정되네|간식 시간|평온한|움직여보자|기록|정리|피드백/.test(text);
+  if (!text || text.length > 60 || speculative || formal) {
+    return buildMorningFeedbackFallback(payload);
+  }
+
+  const sentences = text.match(/[^.!?。！？]+[.!?。！？]?/g) || [text];
+  let result = '';
+  for (const sentence of sentences.slice(0, 2)) {
+    const next = compactText(`${result} ${sentence}`, 90);
+    if (next.length > 75 && result) break;
+    result = next;
+    if (result.length >= 45) break;
+  }
+
+  return result || buildMorningFeedbackFallback(payload);
+}
+
+function normalizeMorningFeedbackResult(result, payload = {}) {
+  const feedback = cleanMorningFeedbackText(result?.feedback, payload);
+  return {
+    feedback: feedback || buildMorningFeedbackFallback(payload),
     tone: compactText(result?.tone, 24) || 'supportive',
     needsTeacherAttention: Boolean(result?.needsTeacherAttention)
   };
@@ -713,23 +1207,35 @@ function buildMorningFeedbackPrompt(payload) {
     : '';
 
   return `너는 초등학생 아침대화 앱의 따뜻한 대화 친구 '콩이'입니다.
-학생의 방금 답변을 읽고, 그 내용에 꼭 맞는 짧은 피드백을 한국어로 작성해 주세요.
+학생의 방금 답변을 읽고, 실제 교실 아침 대화처럼 짧고 자연스러운 한국어 한마디를 작성해 주세요.
 
 반드시 아래 JSON 하나만 출력하세요. 마크다운 코드블록은 쓰지 마세요.
 {
-  "feedback": "학생 답변 내용에 맞춘 1~2문장 피드백",
+  "feedback": "학생 답변 내용에 맞춘 짧은 구어체 한마디",
   "tone": "supportive | calm | encouraging | concerned",
   "needsTeacherAttention": false
 }
 
 규칙:
 - 학생이 실제로 말한 구체적인 내용을 한 가지 반영합니다.
-- 초등학생에게 말하듯 쉽고 부드럽게 말합니다.
-- 길이는 120자 안팎으로 유지합니다.
+- 초등학생에게 옆에서 조용히 말하듯 쉽고 부드럽게 말합니다.
+- 길이는 15~35자 정도로 짧게 유지하고, 최대 2문장까지만 말합니다.
+- 학생이 말하지 않은 이유, 장면, 원인을 절대 추측하지 않습니다.
+- 긴 조언이나 해결책 제안보다 짧은 인정과 안심을 우선합니다.
+- "기록", "정리", "확인", "피드백" 같은 업무 말투는 안전 위험이 있을 때만 씁니다.
+- "좋다/괜찮아/그랬구나/고마워"로 매번 시작하지 말고 답변 내용에 맞게 바로 반응합니다.
+- 질문을 다시 설명하지 말고, 학생 답변에 바로 반응합니다.
+- "그랬구나", "알려줘서 고마워"를 기계적으로 반복하지 말고 문맥에 맞게 가볍게 씁니다.
+- 필요할 때만 선생님 확인을 말하고, 평범한 답변에는 편안한 인정으로 마무리합니다.
 - 의학적 진단, 심리 진단, 단정, 훈계, 해결책 강요는 하지 않습니다.
 - 학생이 "없어", "괜찮아", "보통"처럼 말하면 억지로 문제를 만들지 말고 짧게 인정합니다.
 - 자해, 폭력, 학대, 심한 두려움, 안전 위험이 보이면 needsTeacherAttention을 true로 두고 "선생님이 확인할 수 있게 정리해둘게"처럼 안전하게 말합니다.
 - 개인정보를 늘리거나 새 사실을 만들어내지 않습니다.
+
+예시:
+- 답변 "조금 늦게 자서 피곤해요" -> "늦게 자서 피곤하구나. 오늘은 천천히 시작해도 괜찮아."
+- 답변 "아침 안 먹었어요" -> "아침을 못 먹었구나. 배고프면 선생님께 살짝 말해줘."
+- 답변 "없어요" -> "특별한 일이 없었다면 다행이야. 편하게 시작하자."
 
 현재 질문:
 - key: ${questionKey}
@@ -753,16 +1259,75 @@ app.post('/api/morning-feedback', async (req, res) => {
   if (!questionKey || !questionLabel || !answer || typeof answer !== 'string' || !answer.trim()) {
     return res.status(400).json({ error: '피드백을 만들 질문과 학생 답변을 포함해 주세요.' });
   }
-  if (!openaiApiKey) {
-    return res.status(503).json({ error: 'OPENAI_API_KEY가 설정되지 않았습니다.' });
+  if (!geminiApiKey && !openaiApiKey) {
+    return res.json({
+      feedback: normalizeMorningFeedbackResult({ feedback: buildMorningFeedbackFallback(req.body) }, req.body),
+      source: 'local'
+    });
+  }
+
+  const prompt = buildMorningFeedbackPrompt(req.body);
+  if (geminiApiKey) {
+    try {
+      const result = await requestGeminiJson(prompt);
+      return res.json({ feedback: normalizeMorningFeedbackResult(result, req.body), source: 'gemini' });
+    } catch (error) {
+      console.error('Gemini 아침대화 맞춤 피드백 오류:', error.message);
+      if (!openaiApiKey) {
+        return res.json({
+          feedback: normalizeMorningFeedbackResult({ feedback: buildMorningFeedbackFallback(req.body) }, req.body),
+          source: 'local'
+        });
+      }
+    }
   }
 
   try {
-    const result = await requestOpenAIJson(buildMorningFeedbackPrompt(req.body));
-    return res.json({ feedback: normalizeMorningFeedbackResult(result), source: 'openai' });
+    const result = await requestOpenAIJson(prompt);
+    return res.json({ feedback: normalizeMorningFeedbackResult(result, req.body), source: 'openai' });
   } catch (error) {
     console.error('아침대화 맞춤 피드백 오류:', error.message);
-    return res.status(500).json({ error: '맞춤 피드백을 만드는 중 오류가 발생했습니다.' });
+    return res.json({
+      feedback: normalizeMorningFeedbackResult({ feedback: buildMorningFeedbackFallback(req.body) }, req.body),
+      source: 'local'
+    });
+  }
+});
+
+app.post('/api/morning-speech', async (req, res) => {
+  const text = compactText(req.body?.text, 500);
+  if (!text) {
+    return res.status(400).json({ error: '읽어줄 문장을 포함해 주세요.' });
+  }
+  if (!geminiApiKey) {
+    return res.status(503).json({ error: 'GEMINI_API_KEY가 설정되지 않았습니다.' });
+  }
+
+  try {
+    const audio = await requestGeminiSpeechAudio(text);
+    return res.json({ ...audio, source: 'gemini-tts' });
+  } catch (error) {
+    console.error('Gemini 아침대화 음성 생성 오류:', error.message);
+    return res.status(500).json({ error: '아침대화 음성을 만드는 중 오류가 발생했습니다.' });
+  }
+});
+
+app.post('/api/vision-expression', async (req, res) => {
+  const imageContent = normalizeVisionImageContent(req.body?.imageData);
+  const imageWidth = Number(req.body?.width) || 0;
+  const imageHeight = Number(req.body?.height) || 0;
+  if (!imageContent || !imageWidth || !imageHeight) {
+    return res.status(400).json({ error: '분석할 카메라 이미지가 올바르지 않습니다.' });
+  }
+  if (!visionAccessToken && !visionApiKey) {
+    return res.status(503).json({ error: 'Cloud Vision API 키가 설정되지 않았습니다.' });
+  }
+
+  try {
+    return res.json(await requestVisionExpression(imageContent, imageWidth, imageHeight));
+  } catch (error) {
+    console.error('Cloud Vision 표정 분석 오류:', error.message);
+    return res.status(500).json({ error: 'Cloud Vision 표정 분석 중 오류가 발생했습니다.' });
   }
 });
 
