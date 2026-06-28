@@ -66,7 +66,8 @@
 2. 서비스의 Public Networking에서 `Generate Domain`을 눌러 HTTPS 주소를 만듭니다.
 3. 학생창은 `https://배포주소/student.html`, 관리자창은 `https://배포주소/admin.html`로 엽니다.
 4. 기록을 재배포 후에도 보존하려면 Railway Volume을 `/data`에 마운트하고 환경변수 `DATA_DIR=/data`를 추가합니다.
-5. AI 맞춤 피드백을 쓰려면 Variables에 `GEMINI_API_KEY`, 필요 시 `GEMINI_MODEL`을 추가합니다. OpenAI 분석/대체 피드백을 함께 쓰려면 `OPENAI_API_KEY`, 필요 시 `OPENAI_MODEL`도 추가합니다.
+5. 학생 입력 기록은 Railway 서버에 저장되며 기본 2일 동안 다운로드할 수 있습니다. 기간을 바꾸려면 `STUDENT_DATA_RETENTION_DAYS`를 설정합니다.
+6. AI 맞춤 피드백을 쓰려면 Variables에 `GEMINI_API_KEY`, 필요 시 `GEMINI_MODEL`을 추가합니다. OpenAI 분석/대체 피드백을 함께 쓰려면 `OPENAI_API_KEY`, 필요 시 `OPENAI_MODEL`도 추가합니다.
 
 ## 기술 스택
 

@@ -1084,7 +1084,10 @@
   let stateSyncTimer = null;
   let classSettingsSyncTimer = null;
   let lastClassSettingsSyncOk = false;
-  const teacherServerUrl = window.CONFLICT_APP_TEACHER_SERVER_URL || 'http://192.168.1.19:3000';
+  const configuredTeacherServerUrl = window.CONFLICT_APP_TEACHER_SERVER_URL
+    ? String(window.CONFLICT_APP_TEACHER_SERVER_URL).replace(/\/$/, '')
+    : '';
+  const teacherServerUrl = configuredTeacherServerUrl || 'http://192.168.1.19:3000';
   const deploymentDefaults = window.CONFLICT_APP_DEFAULT_SETTINGS || {};
 
   function applyDeploymentDefaults() {
@@ -1121,9 +1124,7 @@
   function apiUrl(path) {
     if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
       const currentOrigin = window.location.origin;
-      if (currentOrigin === teacherServerUrl || window.location.port === '3000') {
-        return path;
-      }
+      if (!configuredTeacherServerUrl || currentOrigin === teacherServerUrl || window.location.port === '3000') return path;
     }
     return `${teacherServerUrl}${path}`;
   }
@@ -1196,7 +1197,10 @@
           const who = typeof entry?.who === 'string' ? entry.who.trim() : '';
           const text = typeof entry?.text === 'string' ? entry.text.trim() : '';
           if (!who || !text) return;
-          const normalized = { who, text, time: typeof entry.time === 'string' ? entry.time : '' };
+          const createdAt = typeof entry.createdAt === 'string' && !Number.isNaN(Date.parse(entry.createdAt))
+            ? entry.createdAt
+            : new Date().toISOString();
+          const normalized = { who, text, time: typeof entry.time === 'string' ? entry.time : '', createdAt };
           const key = `${normalized.who}\n${normalized.text}\n${normalized.time}`;
           if (!seen.has(key)) {
             seen.add(key);
@@ -2226,7 +2230,7 @@ ${studentEntries}`;
 
     const now = new Date();
     const time = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-    state.students[currentStudent].responses[currentSituationId].push({ who, text, time });
+    state.students[currentStudent].responses[currentSituationId].push({ who, text, time, createdAt: now.toISOString() });
 
     persistState();
     syncStateToServer();
@@ -2728,14 +2732,15 @@ ${studentEntries}`;
           situationId,
           character: entry?.who || '',
           text: entry?.text || '',
-          time: entry?.time || ''
+          time: entry?.time || '',
+          createdAt: entry?.createdAt || ''
         }));
       })
     ).sort((a, b) =>
       Number(a.studentId) - Number(b.studentId) ||
       a.situationTitle.localeCompare(b.situationTitle, 'ko') ||
       a.character.localeCompare(b.character, 'ko') ||
-      a.time.localeCompare(b.time)
+      (a.createdAt || a.time).localeCompare(b.createdAt || b.time)
     );
   }
 
@@ -2747,7 +2752,7 @@ ${studentEntries}`;
       return;
     }
 
-    const header = ['학생 번호', '상황 제목', '상황 ID', '등장인물', '작성 내용', '작성 시간'];
+    const header = ['학생 번호', '상황 제목', '상황 ID', '등장인물', '작성 내용', '작성 시간', '서버 저장 시각'];
     const csv = [
       header.map(csvCell).join(','),
       ...rows.map(row => [
@@ -2756,7 +2761,8 @@ ${studentEntries}`;
         row.situationId,
         row.character,
         row.text,
-        row.time
+        row.time,
+        row.createdAt
       ].map(csvCell).join(','))
     ].join('\r\n');
 
