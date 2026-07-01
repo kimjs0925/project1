@@ -1,0 +1,11 @@
+*
+
+!package.json
+!package-lock.json
+!server.js
+!index.html
+!admin.html
+!student.html
+!morning-index.html
+!morning-shared.js
+!morning-style.css

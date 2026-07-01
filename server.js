@@ -26,6 +26,11 @@ const statePath = path.join(dataDir, 'conflict-state.json');
 const morningRecordsPath = path.join(dataDir, 'morning-records.json');
 const studentDataRetentionDays = Number(process.env.STUDENT_DATA_RETENTION_DAYS || 2);
 const studentDataRetentionMs = Math.max(1, studentDataRetentionDays) * 24 * 60 * 60 * 1000;
+const speechAudioCache = new Map();
+const pendingSpeechAudioRequests = new Map();
+const speechAudioCacheTtlMs = Number(process.env.SPEECH_AUDIO_CACHE_TTL_MS || 24 * 60 * 60 * 1000);
+const speechAudioCacheLimit = Number(process.env.SPEECH_AUDIO_CACHE_LIMIT || 120);
+const geminiTtsTimeoutMs = Number(process.env.GEMINI_TTS_TIMEOUT_MS || 45000);
 
 function loadOpenAIApiKey() {
   if (process.env.OPENAI_API_KEY) return process.env.OPENAI_API_KEY;
@@ -79,9 +84,9 @@ const openaiApiKey = loadOpenAIApiKey();
 const openaiModel = process.env.OPENAI_MODEL || 'gpt-5-mini';
 const openaiApiUrl = 'https://api.openai.com/v1/responses';
 const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || loadGoogleApiKeyFromFiles();
-const geminiModel = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
+const geminiModel = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 const geminiTtsModel = process.env.GEMINI_TTS_MODEL || 'gemini-3.1-flash-tts-preview';
-const geminiTtsVoice = process.env.GEMINI_TTS_VOICE || 'Sulafat';
+const geminiTtsVoice = process.env.GEMINI_TTS_VOICE || 'Leda';
 const visionApiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY
   || process.env.CLOUD_VISION_API_KEY
   || process.env.VISION_API_KEY
@@ -474,13 +479,6 @@ function mergeAppState(base, incoming) {
   const normalizedIncoming = normalizeAppState(incoming);
   return {
     ...normalizedBase,
-    padletUrl: normalizedIncoming.padletUrl || normalizedBase.padletUrl,
-    notebooklmUrl: normalizedIncoming.notebooklmUrl || normalizedBase.notebooklmUrl,
-    situations: normalizedIncoming.situations.length ? normalizedIncoming.situations : normalizedBase.situations,
-    chars: normalizedIncoming.chars.length ? normalizedIncoming.chars : normalizedBase.chars,
-    analysis: normalizedIncoming.analysis?.summary || normalizedIncoming.analysis?.details
-      ? normalizedIncoming.analysis
-      : normalizedBase.analysis,
     students: mergeStudentResponses(normalizedBase.students, normalizedIncoming.students)
   };
 }
@@ -544,6 +542,31 @@ app.get('/student-index.html', (req, res) => {
     console.error('학생 배포용 index 생성 오류:', error);
     return res.status(500).send('학생 배포용 index 파일을 만드는 중 오류가 발생했습니다.');
   }
+});
+
+function sendProjectHtml(res, fileName) {
+  res.setHeader('Cache-Control', 'no-store');
+  return res.sendFile(path.join(process.cwd(), fileName));
+}
+
+app.get(['/morning', '/morning/'], (req, res) => {
+  return sendProjectHtml(res, 'morning-index.html');
+});
+
+app.get(['/morning/student', '/morning/student/'], (req, res) => {
+  return sendProjectHtml(res, 'student.html');
+});
+
+app.get(['/morning/admin', '/morning/admin/'], (req, res) => {
+  return sendProjectHtml(res, 'admin.html');
+});
+
+app.get(['/conflict', '/conflict/'], (req, res) => {
+  return res.redirect(302, '/');
+});
+
+app.get(['/conflict/student', '/conflict/student/'], (req, res) => {
+  return res.redirect(302, '/student-index.html');
 });
 
 function readZipEntryMap(filePath) {
@@ -772,6 +795,7 @@ function extractOpenAIText(body) {
 }
 
 function extractGeminiText(body) {
+  if (typeof body.output_text === 'string') return body.output_text;
   if (typeof body.text === 'string') return body.text;
   if (Array.isArray(body.candidates)) {
     return body.candidates.flatMap(candidate =>
@@ -800,6 +824,40 @@ function extractGeminiInlineAudio(body) {
   return null;
 }
 
+function extractGeminiInteractionAudio(body) {
+  const directAudio = body?.output_audio || body?.outputAudio;
+  if (directAudio?.data) {
+    return {
+      data: directAudio.data,
+      mimeType: directAudio.mimeType || directAudio.mime_type || 'audio/pcm;rate=24000'
+    };
+  }
+
+  const outputs = Array.isArray(body?.output) ? body.output : [];
+  for (const item of outputs) {
+    const audio = item?.output_audio || item?.outputAudio || item?.audio;
+    if (audio?.data) {
+      return {
+        data: audio.data,
+        mimeType: audio.mimeType || audio.mime_type || 'audio/pcm;rate=24000'
+      };
+    }
+
+    const content = Array.isArray(item?.content) ? item.content : [];
+    for (const part of content) {
+      const partAudio = part?.output_audio || part?.outputAudio || part?.audio;
+      if (partAudio?.data) {
+        return {
+          data: partAudio.data,
+          mimeType: partAudio.mimeType || partAudio.mime_type || 'audio/pcm;rate=24000'
+        };
+      }
+    }
+  }
+
+  return extractGeminiInlineAudio(body);
+}
+
 function createWavBuffer(pcmBuffer, sampleRate = 24000, channels = 1, bitsPerSample = 16) {
   const headerSize = 44;
   const byteRate = sampleRate * channels * bitsPerSample / 8;
@@ -822,6 +880,57 @@ function createWavBuffer(pcmBuffer, sampleRate = 24000, channels = 1, bitsPerSam
   pcmBuffer.copy(wav, headerSize);
 
   return wav;
+}
+
+function getPcmSampleRate(mimeType) {
+  const match = String(mimeType || '').match(/rate=(\d+)/i);
+  const sampleRate = match ? Number(match[1]) : 24000;
+  return Number.isFinite(sampleRate) && sampleRate > 0 ? sampleRate : 24000;
+}
+
+function normalizeGeminiSpeechAudio(audio) {
+  if (!audio?.data) {
+    throw new Error('Gemini TTS 응답에 오디오가 없습니다.');
+  }
+
+  if (/audio\/wav/i.test(audio.mimeType)) {
+    return { audioContent: audio.data, mimeType: 'audio/wav' };
+  }
+
+  const pcmBuffer = Buffer.from(audio.data, 'base64');
+  const wavBuffer = createWavBuffer(pcmBuffer, getPcmSampleRate(audio.mimeType));
+  return { audioContent: wavBuffer.toString('base64'), mimeType: 'audio/wav' };
+}
+
+function getSpeechAudioCacheKey(text) {
+  return [
+    geminiTtsModel.replace(/^models\//, ''),
+    geminiTtsVoice,
+    compactText(text, 500)
+  ].join('\n');
+}
+
+function getCachedSpeechAudio(cacheKey) {
+  const cached = speechAudioCache.get(cacheKey);
+  if (!cached) return null;
+  if (Date.now() > cached.expiresAt) {
+    speechAudioCache.delete(cacheKey);
+    return null;
+  }
+  return { ...cached.audio, cached: true };
+}
+
+function cacheSpeechAudio(cacheKey, audio) {
+  if (!audio?.audioContent) return;
+  speechAudioCache.set(cacheKey, {
+    audio: { ...audio },
+    expiresAt: Date.now() + speechAudioCacheTtlMs
+  });
+
+  while (speechAudioCache.size > speechAudioCacheLimit) {
+    const oldestKey = speechAudioCache.keys().next().value;
+    speechAudioCache.delete(oldestKey);
+  }
 }
 
 function parseJsonObject(text) {
@@ -873,21 +982,55 @@ async function requestOpenAIJson(prompt) {
   return parseJsonObject(outputText);
 }
 
-async function requestGeminiSpeechAudio(text) {
-  if (!geminiApiKey) {
-    throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.');
+async function requestGeminiInteractionSpeechAudio(speechText) {
+  const model = geminiTtsModel.replace(/^models\//, '');
+  const response = await request('https://generativelanguage.googleapis.com/v1beta/interactions', {
+    method: 'POST',
+    headersTimeout: geminiTtsTimeoutMs,
+    bodyTimeout: geminiTtsTimeoutMs,
+    headers: {
+      'x-goog-api-key': geminiApiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model,
+      input: buildGeminiTtsPrompt(speechText),
+      response_format: {
+        type: 'audio'
+      },
+      generation_config: {
+        speech_config: [
+          {
+            voice: geminiTtsVoice
+          }
+        ]
+      }
+    })
+  });
+
+  const bodyText = await response.body.text();
+  let body;
+  try {
+    body = JSON.parse(bodyText);
+  } catch (error) {
+    throw new Error(`Gemini TTS Interactions 응답을 읽지 못했습니다: ${bodyText.slice(0, 200)}`);
   }
 
-  const speechText = compactText(text, 500);
-  if (!speechText) {
-    throw new Error('읽어줄 문장이 없습니다.');
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    throw new Error(body.error?.message || 'Gemini TTS Interactions API 요청에 실패했습니다.');
   }
 
+  return normalizeGeminiSpeechAudio(extractGeminiInteractionAudio(body));
+}
+
+async function requestGeminiGenerateContentSpeechAudio(speechText) {
   const model = geminiTtsModel.replace(/^models\//, '');
   const response = await request(
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
     {
       method: 'POST',
+      headersTimeout: geminiTtsTimeoutMs,
+      bodyTimeout: geminiTtsTimeoutMs,
       headers: {
         'x-goog-api-key': geminiApiKey,
         'Content-Type': 'application/json'
@@ -926,17 +1069,132 @@ async function requestGeminiSpeechAudio(text) {
     throw new Error(body.error?.message || 'Gemini TTS API 요청에 실패했습니다.');
   }
 
-  const audio = extractGeminiInlineAudio(body);
-  if (!audio?.data) {
-    throw new Error('Gemini TTS 응답에 오디오가 없습니다.');
+  return normalizeGeminiSpeechAudio(extractGeminiInlineAudio(body));
+}
+
+async function requestGeminiSpeechAudio(text) {
+  if (!geminiApiKey) {
+    throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.');
   }
 
-  if (/audio\/wav/i.test(audio.mimeType)) {
-    return { audioContent: audio.data, mimeType: 'audio/wav' };
+  const speechText = compactText(text, 500);
+  if (!speechText) {
+    throw new Error('읽어줄 문장이 없습니다.');
   }
 
-  const wavBuffer = createWavBuffer(Buffer.from(audio.data, 'base64'));
-  return { audioContent: wavBuffer.toString('base64'), mimeType: 'audio/wav' };
+  const cacheKey = getSpeechAudioCacheKey(speechText);
+  const cached = getCachedSpeechAudio(cacheKey);
+  if (cached) return cached;
+  if (pendingSpeechAudioRequests.has(cacheKey)) {
+    return pendingSpeechAudioRequests.get(cacheKey);
+  }
+
+  const requestPromise = (async () => {
+    let lastError = null;
+    for (const requester of [requestGeminiInteractionSpeechAudio, requestGeminiGenerateContentSpeechAudio]) {
+      try {
+        const audio = await requester(speechText);
+        cacheSpeechAudio(cacheKey, audio);
+        return audio;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError || new Error('Gemini TTS API 요청에 실패했습니다.');
+  })();
+
+  pendingSpeechAudioRequests.set(cacheKey, requestPromise);
+  try {
+    return await requestPromise;
+  } finally {
+    pendingSpeechAudioRequests.delete(cacheKey);
+  }
+}
+
+async function requestGeminiInteractionJson(model, prompt) {
+  const response = await request('https://generativelanguage.googleapis.com/v1beta/interactions', {
+    method: 'POST',
+    headers: {
+      'x-goog-api-key': geminiApiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model,
+      input: prompt,
+      generation_config: {
+        max_output_tokens: 96,
+        temperature: 0.55,
+        top_p: 0.9,
+        thinking_level: 'low'
+      }
+    })
+  });
+
+  const bodyText = await response.body.text();
+  let body;
+  try {
+    body = JSON.parse(bodyText);
+  } catch (error) {
+    throw new Error(`[${model}] Gemini Interactions 응답을 읽지 못했습니다: ${bodyText.slice(0, 200)}`);
+  }
+
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    throw new Error(`[${model}] ${body.error?.message || 'Gemini Interactions API 요청에 실패했습니다.'}`);
+  }
+
+  const outputText = extractGeminiText(body);
+  if (!outputText) {
+    throw new Error(`[${model}] Gemini Interactions 응답에 피드백 텍스트가 없습니다.`);
+  }
+
+  return parseJsonObject(outputText);
+}
+
+async function requestGeminiGenerateContentJson(model, prompt) {
+  const response = await request(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+    {
+      method: 'POST',
+      headers: {
+        'x-goog-api-key': geminiApiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: prompt }]
+          }
+        ],
+        generationConfig: {
+          maxOutputTokens: 96,
+          temperature: 0.55,
+          topP: 0.9,
+          responseMimeType: 'application/json',
+          responseSchema: buildGeminiFeedbackSchema()
+        }
+      })
+    }
+  );
+
+  const bodyText = await response.body.text();
+  let body;
+  try {
+    body = JSON.parse(bodyText);
+  } catch (error) {
+    throw new Error(`[${model}] Gemini generateContent 응답을 읽지 못했습니다: ${bodyText.slice(0, 200)}`);
+  }
+
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    throw new Error(`[${model}] ${body.error?.message || 'Gemini API 요청에 실패했습니다.'}`);
+  }
+
+  const outputText = extractGeminiText(body);
+  if (!outputText) {
+    throw new Error(`[${model}] Gemini 응답에 피드백 텍스트가 없습니다.`);
+  }
+
+  return parseJsonObject(outputText);
 }
 
 async function requestGeminiJson(prompt) {
@@ -946,55 +1204,18 @@ async function requestGeminiJson(prompt) {
 
   let lastError = null;
   for (const model of getGeminiFeedbackModels()) {
-    const response = await request(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-      {
-        method: 'POST',
-        headers: {
-          'x-goog-api-key': geminiApiKey,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }]
-            }
-          ],
-          generationConfig: {
-            maxOutputTokens: 64,
-            temperature: 0.35,
-            topP: 0.8,
-            responseMimeType: 'application/json',
-            responseSchema: buildGeminiFeedbackSchema()
-          }
-        })
-      }
-    );
-
-    const bodyText = await response.body.text();
-    let body;
     try {
-      body = JSON.parse(bodyText);
+      return await requestGeminiGenerateContentJson(model, prompt);
     } catch (error) {
-      lastError = new Error(`Gemini 응답을 읽지 못했습니다: ${bodyText.slice(0, 200)}`);
-      continue;
+      lastError = error;
     }
+  }
 
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      lastError = new Error(`[${model}] ${body.error?.message || 'Gemini API 요청에 실패했습니다.'}`);
-      continue;
-    }
-
-    const outputText = extractGeminiText(body);
-    if (!outputText) {
-      lastError = new Error(`[${model}] Gemini 응답에 피드백 텍스트가 없습니다.`);
-      continue;
-    }
-
+  for (const model of getGeminiFeedbackModels()) {
     try {
-      return parseJsonObject(outputText);
+      return await requestGeminiInteractionJson(model, prompt);
     } catch (error) {
-      lastError = new Error(`[${model}] Gemini JSON 파싱 실패: ${error.message}`);
+      lastError = error;
     }
   }
 
@@ -1227,6 +1448,8 @@ function normalizeGeminiModelName(value) {
 function getGeminiFeedbackModels() {
   const candidates = [
     geminiModel,
+    'gemini-3.5-flash',
+    'gemini-3.1-flash',
     'gemini-3.1-flash-lite',
     'gemini-2.5-flash-lite',
     'gemini-flash-lite-latest',
@@ -1252,10 +1475,11 @@ function buildGeminiFeedbackSchema() {
 function buildGeminiTtsPrompt(text) {
   const speechText = compactText(text, 500);
   return [
-    'Say the following Korean line exactly as a warm, natural one-on-one classroom chat.',
-    'Use a relaxed pace, soft friendly tone, and natural short pauses. Do not sound like an announcer.',
-    'Do not add greetings, explanations, labels, or extra words.',
-    speechText
+    'Read the Korean text below exactly once for an elementary student.',
+    'Keep one consistent warm, soft, natural classroom-chat voice across every sentence.',
+    'Use a relaxed pace and short natural pauses. Do not sound like an announcer.',
+    'Do not add, omit, translate, label, or explain any words.',
+    `Text: """${speechText}"""`
   ].join('\n');
 }
 
@@ -1265,12 +1489,12 @@ function buildMorningFeedbackFallback(payload = {}) {
 
   if (key === 'sleep') {
     if (/부족|피곤|못잤|잠이안|졸려|늦게|자주깼|설쳤/.test(text)) {
-      return '늦게 자서 피곤하구나. 오늘은 천천히 시작해도 괜찮아.';
+      return '잠이 좀 불편했구나. 천천히 시작해도 괜찮아.';
     }
     if (/양호|잘잤|푹잤|충분|좋았/.test(text)) {
-      return '푹 잤구나. 오늘 아침이 조금 가볍겠다.';
+      return '푹 잤구나. 오늘 아침이 가볍게 느껴지겠다.';
     }
-    return '잠 이야기도 들었어. 오늘 몸 느낌을 살피며 시작하자.';
+    return '잠 이야기도 들었어. 오늘 몸 느낌을 살펴볼게.';
   }
 
   if (key === 'breakfast') {
@@ -1278,46 +1502,67 @@ function buildMorningFeedbackFallback(payload = {}) {
       return '아침을 못 먹었구나. 배고프면 선생님께 살짝 말해줘.';
     }
     if (/먹음|조금먹음|먹었|밥|빵|시리얼|과일|우유/.test(text)) {
-      return '아침을 챙겼구나. 오늘 움직일 힘이 조금 생겼겠다.';
+      return '아침을 챙겼구나. 조금 든든하겠다.';
     }
-    return '아침 이야기도 들었어. 몸 느낌을 같이 살펴보자.';
+    return '아침 이야기도 들었어. 몸 느낌도 같이 볼게.';
   }
 
   if (key === 'special') {
     if (/없음|없어|없었|별일없|괜찮/.test(text)) {
-      return '특별한 일이 없었다면 다행이야. 편하게 시작하자.';
+      return '특별한 일이 없었다면 편하게 시작해도 괜찮아.';
     }
-    return '그 일이 마음에 남아 있었구나. 선생님도 살펴볼게.';
+    return '그 일이 마음에 남아 있었구나. 말해줘서 고마워.';
   }
 
   if (key === 'mood') {
     if (/밝음|좋|기뻐|행복|신나|재밌|설레/.test(text)) {
-      return '좋은 기분으로 시작해서 반가워. 그 느낌이 이어지면 좋겠다.';
+      return '좋은 기분이라니 반가워. 그 느낌이 이어지면 좋겠다.';
     }
     if (/피곤|속상|슬퍼|우울|답답|화남|짜증|걱정|불안|무서|긴장|힘들/.test(text)) {
-      return '마음이 편하지만은 않았구나. 오늘은 천천히 가도 괜찮아.';
+      return '마음이 편하지만은 않았구나. 천천히 가도 괜찮아.';
     }
     if (/보통|괜찮|그냥|모르겠/.test(text)) {
       return '보통이라고 말해줘도 충분해. 그런 날도 있지.';
     }
-    return '지금 마음을 들었어. 그 마음에서 천천히 시작해보자.';
+    return '지금 마음을 들었어. 그 마음 그대로 괜찮아.';
   }
 
   if (key === 'conflict') {
     if (/없음|없어|없었|별일없|괜찮/.test(text)) {
-      return '친구 일로 마음에 남은 게 없다니 다행이야.';
+      return '친구 일로 마음에 남은 게 없다니 편하겠다.';
     }
-    return '친구 일이 마음에 남았구나. 선생님도 살펴볼게.';
+    return '친구 일이 마음에 남았구나. 말해줘서 고마워.';
   }
 
   return '네 이야기 잘 들었어. 고마워.';
 }
 
+const morningFeedbackTopicPatterns = {
+  sleep: /잠|잤|자서|졸|피곤|늦게|꿈|수면|밤|설쳤|깼|못잤/,
+  breakfast: /아침|밥|먹|굶|빵|우유|시리얼|과일|배고|배불/,
+  conflict: /친구|싸웠|다툼|갈등|놀림|괴롭|미안|화해|말다툼|속상하게/
+};
+
+function hasMorningFeedbackTopic(text, topic) {
+  return morningFeedbackTopicPatterns[topic]?.test(String(text || '').replace(/\s+/g, '')) || false;
+}
+
+function feedbackDriftsFromCurrentAnswer(feedback, payload = {}) {
+  const currentKey = compactText(payload.questionKey, 24);
+  const answerText = compactText(`${payload.answer || ''} ${payload.summary || ''}`, 500);
+  const feedbackText = compactText(feedback, 220);
+
+  return Object.keys(morningFeedbackTopicPatterns).some(topic => {
+    if (topic === currentKey) return false;
+    return hasMorningFeedbackTopic(feedbackText, topic) && !hasMorningFeedbackTopic(answerText, topic);
+  });
+}
+
 function cleanMorningFeedbackText(value, payload = {}) {
   const text = compactText(value, 140).replace(/^["']|["']$/g, '');
   const speculative = /무슨 .*있었나|아마|혹시 .*일지도|것 같|보네|보인다|보여|짐작|추측/.test(text);
-  const formal = /컨디션 조절|건강 관리|무엇보다 중요|해보는 건 어떨|하길 바라|무리하지|힘내자|걱정되네|간식 시간|평온한|움직여보자|기록|정리|피드백/.test(text);
-  if (!text || text.length > 60 || speculative || formal) {
+  const formal = /군요|습니다|하세요|해\s*봐요|시작해\s*봐요|컨디션 조절|건강 관리|무엇보다 중요|해보는 건 어떨|하길 바라|무리하지|힘내자|걱정되네|간식 시간|평온한|움직여보자|기록|정리|피드백/.test(text);
+  if (!text || text.length > 90 || speculative || formal || feedbackDriftsFromCurrentAnswer(text, payload)) {
     return buildMorningFeedbackFallback(payload);
   }
 
@@ -1325,7 +1570,7 @@ function cleanMorningFeedbackText(value, payload = {}) {
   let result = '';
   for (const sentence of sentences.slice(0, 2)) {
     const next = compactText(`${result} ${sentence}`, 90);
-    if (next.length > 75 && result) break;
+    if (next.length > 85 && result) break;
     result = next;
     if (result.length >= 45) break;
   }
@@ -1357,7 +1602,17 @@ function buildMorningFeedbackPrompt(payload) {
     : '';
 
   return `너는 초등학생 아침대화 앱의 따뜻한 대화 친구 '콩이'입니다.
-학생의 방금 답변을 읽고, 실제 교실 아침 대화처럼 짧고 자연스러운 한국어 한마디를 작성해 주세요.
+학생의 "방금 답변"에만 바로 반응하는 짧고 자연스러운 한국어 한마디를 작성해 주세요.
+이 말은 다음 질문으로 넘어가기 전 콩이가 바로 건네는 대화 반응입니다.
+
+[가장 중요]
+- 현재 피드백의 소재는 반드시 아래 "학생의 방금 답변"이어야 합니다.
+- 이전 답변 요약, 카메라 표정, 질문 라벨은 말투와 위험 신호 참고용일 뿐입니다.
+- 학생의 방금 답변에 없는 잠, 아침밥, 친구 일, 가족 일, 이유, 원인을 새로 말하지 마세요.
+- 학생이 방금 말한 내용과 맞지 않는 구체적 표현을 만들지 말고, 확실하지 않으면 넓게 인정하세요.
+
+학생의 방금 답변:
+${answer}
 
 반드시 아래 JSON 하나만 출력하세요. 마크다운 코드블록은 쓰지 마세요.
 {
@@ -1369,6 +1624,10 @@ function buildMorningFeedbackPrompt(payload) {
 규칙:
 - 학생이 실제로 말한 구체적인 내용을 한 가지 반영합니다.
 - 초등학생에게 옆에서 조용히 말하듯 쉽고 부드럽게 말합니다.
+- 말끝은 "구나", "네", "괜찮아", "고마워", "좋겠다"처럼 다정한 반말로 씁니다.
+- "군요", "습니다", "하세요", "해 봐요" 같은 교사 설명 말투나 상담 보고서 말투는 쓰지 않습니다.
+- 방송 멘트, 상담 보고서, 앱 안내문처럼 들리지 않게 실제 말하듯 씁니다.
+- 이전 답변 요약이 있으면 말투와 흐름만 참고하고, 이번 답변의 소재로 쓰지 않습니다.
 - 길이는 15~35자 정도로 짧게 유지하고, 최대 2문장까지만 말합니다.
 - 학생이 말하지 않은 이유, 장면, 원인을 절대 추측하지 않습니다.
 - 긴 조언이나 해결책 제안보다 짧은 인정과 안심을 우선합니다.
@@ -1391,16 +1650,13 @@ function buildMorningFeedbackPrompt(payload) {
 - key: ${questionKey}
 - label: ${questionLabel}
 
-학생 답변:
-${answer}
-
 규칙 기반 요약:
 ${summary || '없음'}
 
-이전 답변 요약:
+이전 답변 요약(이번 피드백의 소재로 직접 쓰지 않기):
 ${previousAnswers || '없음'}
 
-카메라 표정 참고:
+카메라 표정 참고(위험 신호 확인용):
 ${expression || '없음'}`;
 }
 
@@ -1764,9 +2020,13 @@ app.listen(port, host, () => {
   console.log(`서버가 실행 중입니다. 바인드: ${host}:${port}`);
   if (addresses.length) {
     addresses.forEach(a => {
-      console.log(`학생 접속 URL: http://${a}:${port}/student-index.html`);
+      console.log(`갈등 해결 학생 URL: http://${a}:${port}/student-index.html`);
+      console.log(`아침대화 학생 URL: http://${a}:${port}/morning/student`);
+      console.log(`아침대화 관리자 URL: http://${a}:${port}/morning/admin`);
     });
   } else {
-    console.log(`로컬 접속 URL: http://localhost:${port}/student-index.html`);
+    console.log(`갈등 해결 로컬 URL: http://localhost:${port}/student-index.html`);
+    console.log(`아침대화 학생 로컬 URL: http://localhost:${port}/morning/student`);
+    console.log(`아침대화 관리자 로컬 URL: http://localhost:${port}/morning/admin`);
   }
 });

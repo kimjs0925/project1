@@ -1329,7 +1329,7 @@
       const response = await fetch(apiUrl('/api/state'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state })
+        body: JSON.stringify({ state: { students: state.students } })
       });
       if (!response.ok) {
         updateSyncStatus(false);
@@ -1861,6 +1861,7 @@ ${studentEntries}`;
       const posts = await extractPadletPostsFromXlsxFile(file);
       state.analysis = analyzeLocalPadletPosts(posts);
       persistState();
+      syncClassSettingsToServer();
       renderAnalysisView();
       notice.textContent = `✅ ${file.name}의 ${posts.length}개 글을 서버 없이 유형별로 분석했습니다.`;
       notice.classList.add('visible');
