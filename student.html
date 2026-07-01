@@ -387,7 +387,10 @@
     }
 
     async function playGeminiSpeech(text, token, onEnd) {
-      if (!window.fetch || !window.Audio || !window.Blob || !window.atob) return false;
+      if (!window.fetch || !window.Audio || !window.Blob || !window.atob) {
+        finishBotSpeech(onEnd, 500);
+        return true;
+      }
       let fallbackStarted = false;
       let playbackStarted = false;
 
@@ -410,14 +413,9 @@
         const fallbackFromAudio = () => {
           if (fallbackStarted || token !== speechRequestToken) return;
           fallbackStarted = true;
-          const canFallbackCleanly = !playbackStarted && (!audio.currentTime || audio.currentTime < 0.15);
           stopCurrentSpeechAudio();
-          if (canFallbackCleanly) {
-            speakWithBrowserVoice(text, onEnd);
-          } else {
-            console.warn('Gemini 음성이 재생 중 끊겨 기본 음성으로 섞지 않고 종료합니다.');
-            finishBotSpeech(onEnd);
-          }
+          console.warn('Gemini 음성이 끊겨 기본 음성으로 섞지 않고 종료합니다.', { playbackStarted });
+          finishBotSpeech(onEnd, playbackStarted ? 0 : 500);
         };
         currentSpeechAudio = audio;
         currentSpeechAudioUrl = audioUrl;
@@ -435,9 +433,10 @@
         return true;
       } catch (error) {
         if (fallbackStarted) return true;
-        console.warn('Gemini 음성을 사용할 수 없어 기본 음성으로 이어갑니다.', error);
+        console.warn('Gemini 음성을 사용할 수 없어 기본 음성으로 바꾸지 않고 텍스트만 유지합니다.', error);
         stopCurrentSpeechAudio();
-        return false;
+        finishBotSpeech(onEnd, 500);
+        return true;
       }
     }
 
@@ -478,7 +477,7 @@
 
       playGeminiSpeech(speechText, token, onEnd).then(played => {
         if (token !== speechRequestToken || played) return;
-        speakWithBrowserVoice(speechText, onEnd);
+        finishBotSpeech(onEnd, 500);
       });
     }
 

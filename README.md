@@ -56,7 +56,8 @@
 - 아침대화 학생창의 콩이 피드백은 `GEMINI_API_KEY`가 있으면 Google AI Studio/Gemini API를 먼저 사용해 더 자연스러운 말투로 만듭니다.
 - 콩이가 말로 읽어주는 음성도 `GEMINI_API_KEY`가 있으면 Gemini TTS로 생성한 자연스러운 WAV 오디오를 먼저 재생합니다.
 - Gemini 피드백에 실패하거나 키가 없으면 OpenAI 맞춤 피드백, 그다음 기본 문장으로 이어집니다.
-- Gemini 음성 생성에 실패하거나 키가 없으면 기존 브라우저 음성으로 자동 전환됩니다.
+- Gemini 음성 생성에 실패하거나 키가 없으면 브라우저 기본 음성으로 바꾸지 않고 텍스트만 유지해 말투가 섞이지 않게 합니다.
+- Gemini TTS 오디오는 Railway Volume 기준 `/data/tts-cache`에 파일로 캐시되어 같은 문장은 재배포 후에도 다시 사용합니다. 캐시 위치는 `SPEECH_AUDIO_CACHE_DIR`, 사용 여부는 `SPEECH_AUDIO_DISK_CACHE=0`으로 조정할 수 있습니다.
 - 목소리는 `.env`의 `GEMINI_TTS_VOICE`에서 바꿀 수 있습니다. 기본값은 `Leda`입니다.
 - Google AI Studio의 Live Translate는 공식적으로 실시간 음성 번역용 기능이라 텍스트 대화 자연화에는 직접 쓰지 않고, 현재 앱은 Gemini 텍스트 생성 API로 피드백을 다듬습니다.
 

@@ -5,6 +5,7 @@ import path from 'path';
 import zlib from 'zlib';
 import { request } from 'undici';
 import os from 'os';
+import crypto from 'crypto';
 
 dotenv.config();
 dotenv.config({ path: path.resolve(process.cwd(), 'openaiapi.env') });
@@ -31,6 +32,8 @@ const pendingSpeechAudioRequests = new Map();
 const speechAudioCacheTtlMs = Number(process.env.SPEECH_AUDIO_CACHE_TTL_MS || 24 * 60 * 60 * 1000);
 const speechAudioCacheLimit = Number(process.env.SPEECH_AUDIO_CACHE_LIMIT || 120);
 const geminiTtsTimeoutMs = Number(process.env.GEMINI_TTS_TIMEOUT_MS || 45000);
+const speechAudioDiskCacheDir = path.resolve(process.env.SPEECH_AUDIO_CACHE_DIR || path.join(dataDir, 'tts-cache'));
+const speechAudioDiskCacheEnabled = process.env.SPEECH_AUDIO_DISK_CACHE !== '0';
 
 function loadOpenAIApiKey() {
   if (process.env.OPENAI_API_KEY) return process.env.OPENAI_API_KEY;
@@ -910,6 +913,14 @@ function getSpeechAudioCacheKey(text) {
   ].join('\n');
 }
 
+function getSpeechAudioDiskCachePaths(cacheKey) {
+  const hash = crypto.createHash('sha256').update(cacheKey).digest('hex');
+  return {
+    audioPath: path.join(speechAudioDiskCacheDir, `${hash}.wav`),
+    metaPath: path.join(speechAudioDiskCacheDir, `${hash}.json`)
+  };
+}
+
 function getCachedSpeechAudio(cacheKey) {
   const cached = speechAudioCache.get(cacheKey);
   if (!cached) return null;
@@ -918,6 +929,31 @@ function getCachedSpeechAudio(cacheKey) {
     return null;
   }
   return { ...cached.audio, cached: true };
+}
+
+function getDiskCachedSpeechAudio(cacheKey) {
+  if (!speechAudioDiskCacheEnabled) return null;
+
+  try {
+    const { audioPath, metaPath } = getSpeechAudioDiskCachePaths(cacheKey);
+    if (!fs.existsSync(audioPath) || !fs.existsSync(metaPath)) return null;
+
+    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+    const audioContent = fs.readFileSync(audioPath).toString('base64');
+    if (!audioContent) return null;
+
+    const audio = {
+      audioContent,
+      mimeType: meta.mimeType || 'audio/wav',
+      cached: true,
+      cache: 'disk'
+    };
+    cacheSpeechAudio(cacheKey, audio);
+    return audio;
+  } catch (error) {
+    console.warn('TTS 파일 캐시를 읽지 못했습니다:', error.message);
+    return null;
+  }
 }
 
 function cacheSpeechAudio(cacheKey, audio) {
@@ -930,6 +966,25 @@ function cacheSpeechAudio(cacheKey, audio) {
   while (speechAudioCache.size > speechAudioCacheLimit) {
     const oldestKey = speechAudioCache.keys().next().value;
     speechAudioCache.delete(oldestKey);
+  }
+}
+
+function cacheSpeechAudioToDisk(cacheKey, audio) {
+  if (!speechAudioDiskCacheEnabled || !audio?.audioContent) return;
+
+  try {
+    fs.mkdirSync(speechAudioDiskCacheDir, { recursive: true });
+    const { audioPath, metaPath } = getSpeechAudioDiskCachePaths(cacheKey);
+    const buffer = Buffer.from(audio.audioContent, 'base64');
+    fs.writeFileSync(audioPath, buffer);
+    fs.writeFileSync(metaPath, JSON.stringify({
+      mimeType: audio.mimeType || 'audio/wav',
+      model: geminiTtsModel.replace(/^models\//, ''),
+      voice: geminiTtsVoice,
+      createdAt: new Date().toISOString()
+    }, null, 2));
+  } catch (error) {
+    console.warn('TTS 파일 캐시에 저장하지 못했습니다:', error.message);
   }
 }
 
@@ -1085,6 +1140,8 @@ async function requestGeminiSpeechAudio(text) {
   const cacheKey = getSpeechAudioCacheKey(speechText);
   const cached = getCachedSpeechAudio(cacheKey);
   if (cached) return cached;
+  const diskCached = getDiskCachedSpeechAudio(cacheKey);
+  if (diskCached) return diskCached;
   if (pendingSpeechAudioRequests.has(cacheKey)) {
     return pendingSpeechAudioRequests.get(cacheKey);
   }
@@ -1095,6 +1152,7 @@ async function requestGeminiSpeechAudio(text) {
       try {
         const audio = await requester(speechText);
         cacheSpeechAudio(cacheKey, audio);
+        cacheSpeechAudioToDisk(cacheKey, audio);
         return audio;
       } catch (error) {
         lastError = error;
