@@ -1310,6 +1310,7 @@
   };
   let currentStudent = null;
   let currentSituationId = '';
+  let pendingStudentAction = '';
 
   // 워드클라우드 필터 상태
   let wordCloudFilter = 'all'; // 'all', 'situation', 'character'
@@ -2349,6 +2350,12 @@ ${studentEntries}`;
   }
 
   async function goToSituation() {
+    if (!currentStudent) {
+      pendingStudentAction = 'situation';
+      document.getElementById('student-modal').style.display = 'flex';
+      return;
+    }
+
     // 서버에서 최신 상황을 동기화 (학생이 "문제 상황 확인하기"를 클릭했을 때)
     const synced = await syncClassSettingsFromServer();
     if (!synced) {
@@ -2617,7 +2624,13 @@ ${studentEntries}`;
 
   // ── Student: emotions ───────────────────────────────────
   function submitEmotion() {
-    if (!currentStudent || !currentSituationId) return;
+    if (!currentStudent) {
+      pendingStudentAction = 'situation';
+      alert('학생 번호를 먼저 선택해 주세요.');
+      document.getElementById('student-modal').style.display = 'flex';
+      return;
+    }
+    if (!currentSituationId) return;
     const who = document.getElementById('char-select').value;
     const text = document.getElementById('emotion-input').value.trim();
     if (!who || !text) { alert('인물과 감정을 모두 입력해 주세요.'); return; }
@@ -2672,6 +2685,8 @@ ${studentEntries}`;
   async function selectStudent() {
     const id = document.getElementById('student-select').value;
     if (!id) return;
+    const actionAfterSelect = pendingStudentAction;
+    pendingStudentAction = '';
     currentStudent = id;
     if (!state.students[id]) state.students[id] = { responses: {} };
     document.getElementById('student-modal').style.display = 'none';
@@ -2689,9 +2704,13 @@ ${studentEntries}`;
       currentSituationId = state.situations[0].id;
     }
     renderSituationView();
+    if (actionAfterSelect === 'situation') {
+      await goToSituation();
+    }
   }
 
   function closeStudentModal() {
+    pendingStudentAction = '';
     document.getElementById('student-modal').style.display = 'none';
     document.getElementById('student-select').value = '';
   }
@@ -2857,7 +2876,7 @@ ${studentEntries}`;
     const words = allText
       .replace(/[.,!?;:()""''\[\]]/g, ' ')
       .split(/\s+/)
-      .filter(w => w.length >= 2 && w.length <= 10)
+      .filter(w => w.length <= 10 && (/[가-힣]/.test(w) ? w.length >= 1 : w.length >= 2))
       .filter(w => !['하고', '것', '같아요', '있을', '났을', '해서', '나는', '그리고', '하지만', '그래서', '아니라', '때문에', '정말로', '너무', '매우', '조금', '많이', '아주', '그렇게', '이렇게', '저렇게', '어떻게', '왜', '어디', '언제', '누가', '무엇을', '어떤', '이런', '저런', '그런'].includes(w))
       .map(w => w.toLowerCase());
 
