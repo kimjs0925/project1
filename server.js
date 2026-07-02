@@ -157,6 +157,10 @@ app.use(express.json({ limit: '5mb' }));
 const emptyState = {
   padletUrl: '',
   notebooklmUrl: '',
+  instructionalMaterial: null,
+  connectionLink: '',
+  connectionActivity: '',
+  internalizationLink: '',
   situations: [],
   chars: [],
   students: {},
@@ -411,6 +415,10 @@ function getClassSettings(current) {
   return {
     padletUrl: current.padletUrl,
     notebooklmUrl: current.notebooklmUrl,
+    instructionalMaterial: current.instructionalMaterial,
+    connectionLink: current.connectionLink,
+    connectionActivity: current.connectionActivity,
+    internalizationLink: current.internalizationLink,
     situations: current.situations,
     chars: current.chars,
     analysis: current.analysis
@@ -429,11 +437,29 @@ function getRequestOrigin(req) {
   return `${proto}://${host}`;
 }
 
+function normalizeInstructionalMaterial(value) {
+  if (!value || typeof value !== 'object') return null;
+  const name = typeof value.name === 'string' ? value.name : '';
+  const dataUrl = typeof value.dataUrl === 'string' ? value.dataUrl : '';
+  if (!name || !dataUrl) return null;
+  return {
+    name,
+    type: typeof value.type === 'string' ? value.type : '',
+    size: Number(value.size) || 0,
+    dataUrl,
+    uploadedAt: typeof value.uploadedAt === 'string' ? value.uploadedAt : ''
+  };
+}
+
 function normalizeAppState(value) {
   const source = value && typeof value === 'object' ? value : {};
   return {
     padletUrl: typeof source.padletUrl === 'string' ? source.padletUrl : '',
     notebooklmUrl: typeof source.notebooklmUrl === 'string' ? source.notebooklmUrl : '',
+    instructionalMaterial: normalizeInstructionalMaterial(source.instructionalMaterial),
+    connectionLink: typeof source.connectionLink === 'string' ? source.connectionLink : '',
+    connectionActivity: typeof source.connectionActivity === 'string' ? source.connectionActivity : '',
+    internalizationLink: typeof source.internalizationLink === 'string' ? source.internalizationLink : '',
     situations: Array.isArray(source.situations) ? source.situations : [],
     chars: Array.isArray(source.chars) ? source.chars : [],
     students: source.students && typeof source.students === 'object' ? source.students : {},

@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>갈등 해결 활동 앱</title>
+  <title>대한민국 AI-SMILE</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&family=Noto+Serif+KR:wght@700;900&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/wordcloud2.js@1.2.2/src/wordcloud2.js"></script>
   <style>
@@ -27,6 +27,11 @@
       --color-surface: #ffffff;
       --color-surface-soft: #f8fafc;
       --color-danger: #dc2626;
+      --smile-s: #fb8d2f;
+      --smile-m: #3b8fca;
+      --smile-i: #34cfb3;
+      --smile-l: #ffc247;
+      --smile-e: #8e75eb;
 
       --font-body: 'Noto Sans KR', sans-serif;
       --font-heading: 'Noto Sans KR', sans-serif;
@@ -84,6 +89,58 @@
       color: var(--color-muted);
       line-height: 1.5;
     }
+    .brand-lockup {
+      display: block;
+      margin-bottom: 8px;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .project-title h1 {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-bottom: 6px;
+    }
+    .title-smile {
+      display: inline-flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+    .smile-letter {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 25px;
+      font-weight: 900;
+      line-height: 1;
+      box-shadow: 0 8px 16px rgba(15, 23, 42, 0.15);
+    }
+    .title-smile .smile-letter {
+      width: 34px;
+      height: 34px;
+      font-size: 20px;
+      box-shadow: 0 7px 14px rgba(15, 23, 42, 0.14);
+    }
+    .mark-s { background: var(--smile-s); }
+    .mark-m { background: var(--smile-m); }
+    .mark-i { background: var(--smile-i); }
+    .mark-l { background: var(--smile-l); }
+    .mark-e { background: var(--smile-e); }
 
     /* Tab bar */
     .tab-bar {
@@ -177,6 +234,14 @@
       display: flex; align-items: center; justify-content: center;
       font-size: 20px; flex-shrink: 0;
       color: var(--color-surface);
+    }
+    .btn-icon.smile-letter {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      font-size: 28px;
+      font-weight: 900;
+      font-family: var(--font-body);
     }
     .icon-teal { background: var(--color-emerald-sprint); }
     .icon-purple { background: var(--color-amethyst-glow); }
@@ -289,6 +354,11 @@
     .btn-primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
     .btn-full { width: 100%; }
     .btn-sm { padding: 10px 16px; font-size: 13px; }
+    .btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+      transform: none;
+    }
     .tab:focus-visible,
     .action-btn:focus-visible,
     .back-btn:focus-visible,
@@ -379,6 +449,27 @@
     .inline-group input:focus {
       transform: translateY(-1px);
       box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+    .material-status {
+      margin-top: 8px;
+      color: var(--color-muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .material-status.ready {
+      color: #11613a;
+      font-weight: 700;
+    }
+    .activity-view {
+      white-space: pre-wrap;
+      min-height: 92px;
+      padding: 16px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-button);
+      background: var(--color-surface-soft);
+      color: var(--color-text);
+      line-height: 1.8;
+      margin-bottom: 12px;
     }
 
     /* Word Cloud Canvas */
@@ -731,6 +822,19 @@
       .app-header h1 {
         font-size: 24px;
       }
+      .brand-lockup {
+        margin-bottom: 6px;
+      }
+      .smile-letter {
+        width: 34px;
+        height: 34px;
+        font-size: 20px;
+      }
+      .title-smile .smile-letter {
+        width: 30px;
+        height: 30px;
+        font-size: 18px;
+      }
 
       .app-header p,
       .page-sub {
@@ -761,6 +865,11 @@
       .btn-icon {
         width: 40px;
         height: 40px;
+      }
+      .btn-icon.smile-letter {
+        width: 42px;
+        height: 42px;
+        font-size: 24px;
       }
 
       .inline-group {
@@ -804,7 +913,21 @@
 
 <div class="app">
   <div class="app-header">
-    <h1>🕊️ 갈등 해결 활동</h1>
+    <div class="brand-lockup" aria-label="대한민국 AI-SMILE">
+      <div class="project-title">
+        <h1>
+          <span>대한민국 AI-</span>
+          <span class="title-smile" aria-hidden="true">
+            <span class="smile-letter mark-s">S</span>
+            <span class="smile-letter mark-m">M</span>
+            <span class="smile-letter mark-i">I</span>
+            <span class="smile-letter mark-l">L</span>
+            <span class="smile-letter mark-e">E</span>
+          </span>
+          <span class="sr-only">SMILE</span>
+        </h1>
+      </div>
+    </div>
     <p>학생 · 관리자 통합 앱</p>
   </div>
 
@@ -870,7 +993,7 @@
     <div class="decorative-line"></div>
 
       <button class="action-btn" onclick="openLink('padlet')">
-        <div class="btn-icon icon-teal">✏️</div>
+        <div class="btn-icon smile-letter mark-s">S</div>
         <div class="btn-text">
           <span class="btn-title">갈등 상황 입력하기</span>
           <span class="btn-desc">패들렛에서 갈등 상황을 작성해요</span>
@@ -879,7 +1002,7 @@
       </button>
 
       <button class="action-btn" onclick="goToSituation()">
-        <div class="btn-icon icon-purple">👀</div>
+        <div class="btn-icon smile-letter mark-s">S</div>
         <div class="btn-text">
           <span class="btn-title">문제 상황 확인하기</span>
           <span class="btn-desc">상황을 보고 등장인물의 감정을 입력해요</span>
@@ -888,10 +1011,37 @@
       </button>
 
       <button class="action-btn" onclick="openLink('notebooklm')">
-        <div class="btn-icon icon-coral">💬</div>
+        <div class="btn-icon smile-letter mark-m">M</div>
         <div class="btn-text">
           <span class="btn-title">갈등 상황 해결방법 대화하기</span>
           <span class="btn-desc">노트북LM과 해결 방법을 대화해요</span>
+        </div>
+        <span class="btn-arrow">↗</span>
+      </button>
+
+      <button class="action-btn" onclick="openInstructionalMaterial()">
+        <div class="btn-icon smile-letter mark-i">I</div>
+        <div class="btn-text">
+          <span class="btn-title">명시적 교수에 의한 배움다지기</span>
+          <span class="btn-desc">선생님이 올린 교수자료를 확인해요</span>
+        </div>
+        <span class="btn-arrow">↗</span>
+      </button>
+
+      <button class="action-btn" onclick="goToConnection()">
+        <div class="btn-icon smile-letter mark-l">L</div>
+        <div class="btn-text">
+          <span class="btn-title">함께 연결하기</span>
+          <span class="btn-desc">함께 할 활동을 확인하고 링크로 이동해요</span>
+        </div>
+        <span class="btn-arrow">→</span>
+      </button>
+
+      <button class="action-btn" onclick="openLink('internalization')">
+        <div class="btn-icon smile-letter mark-e">E</div>
+        <div class="btn-text">
+          <span class="btn-title">내면화하기</span>
+          <span class="btn-desc">선생님이 안내한 링크로 이동해요</span>
         </div>
         <span class="btn-arrow">↗</span>
       </button>
@@ -932,6 +1082,18 @@
       <div id="emotion-list"></div>
     </div>
 
+    <div id="student-connection" class="sub-page">
+      <button class="back-btn" onclick="showSub('student-connection','student-home')">
+        ← 돌아가기
+      </button>
+      <p class="page-title">함께 연결하기</p>
+      <div class="card card-accent">
+        <div class="section-title">L 함께 연결하기</div>
+        <div id="connection-activity-view" class="activity-view">선생님이 활동을 입력하면 이곳에 표시됩니다.</div>
+        <button id="connection-link-btn" class="btn btn-primary btn-full" onclick="openLink('connection')">연결 링크 열기</button>
+      </div>
+    </div>
+
   </div>
 
   <!-- 관리자 페이지 -->
@@ -953,6 +1115,25 @@
         <label class="field-label">노트북LM 링크</label>
         <input type="url" id="notebooklm-url" placeholder="https://notebooklm.google.com/...">
       </div>
+      <div class="field-group">
+        <label class="field-label">명시적 교수에 의한 배움다지기 교수자료</label>
+        <input type="file" id="instruction-material-file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.doc,.docx,.ppt,.pptx">
+        <div id="instruction-material-status" class="material-status">저장된 교수자료가 없습니다.</div>
+        <button class="btn btn-sm" style="margin-top: 8px;" onclick="clearInstructionalMaterial()">교수자료 비우기</button>
+      </div>
+      <div class="field-group">
+        <label class="field-label">함께 연결하기 링크</label>
+        <input type="url" id="connection-link" placeholder="https://...">
+      </div>
+      <div class="field-group">
+        <label class="field-label">함께 연결하기 활동</label>
+        <textarea id="connection-activity" placeholder="학생들이 함께 연결하기에서 할 활동을 입력하세요."></textarea>
+      </div>
+      <div class="field-group">
+        <label class="field-label">내면화하기 링크</label>
+        <input type="url" id="internalization-link" placeholder="https://...">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="saveClassMenuSettings()">AI-SMILE 메뉴 설정 저장하기</button>
     </div>
 
     <div class="card card-warm">
@@ -1069,6 +1250,10 @@
   let state = {
     padletUrl: '',
     notebooklmUrl: '',
+    instructionalMaterial: null,
+    connectionLink: '',
+    connectionActivity: '',
+    internalizationLink: '',
     situations: [],
     chars: [],
     students: {}, // {1: { responses: { situationId: [ {who,text,time} ] } }}
@@ -1089,6 +1274,21 @@
     : '';
   const teacherServerUrl = configuredTeacherServerUrl || 'http://192.168.1.19:3000';
   const deploymentDefaults = window.CONFLICT_APP_DEFAULT_SETTINGS || {};
+  const INSTRUCTION_MATERIAL_MAX_BYTES = 3 * 1024 * 1024;
+
+  function normalizeInstructionalMaterial(material) {
+    if (!material || typeof material !== 'object') return null;
+    const name = typeof material.name === 'string' ? material.name : '';
+    const dataUrl = typeof material.dataUrl === 'string' ? material.dataUrl : '';
+    if (!name || !dataUrl) return null;
+    return {
+      name,
+      type: typeof material.type === 'string' ? material.type : '',
+      size: Number(material.size) || 0,
+      dataUrl,
+      uploadedAt: typeof material.uploadedAt === 'string' ? material.uploadedAt : ''
+    };
+  }
 
   function applyDeploymentDefaults() {
     if (!deploymentDefaults || typeof deploymentDefaults !== 'object') return;
@@ -1097,6 +1297,18 @@
     }
     if (!state.notebooklmUrl && typeof deploymentDefaults.notebooklmUrl === 'string') {
       state.notebooklmUrl = deploymentDefaults.notebooklmUrl;
+    }
+    if (!state.instructionalMaterial) {
+      state.instructionalMaterial = normalizeInstructionalMaterial(deploymentDefaults.instructionalMaterial);
+    }
+    if (!state.connectionLink && typeof deploymentDefaults.connectionLink === 'string') {
+      state.connectionLink = deploymentDefaults.connectionLink;
+    }
+    if (!state.connectionActivity && typeof deploymentDefaults.connectionActivity === 'string') {
+      state.connectionActivity = deploymentDefaults.connectionActivity;
+    }
+    if (!state.internalizationLink && typeof deploymentDefaults.internalizationLink === 'string') {
+      state.internalizationLink = deploymentDefaults.internalizationLink;
     }
     if (!state.situations.length && Array.isArray(deploymentDefaults.situations)) {
       state.situations = normalizeSituations(deploymentDefaults.situations);
@@ -1239,6 +1451,18 @@
     state.notebooklmUrl = typeof remote.notebooklmUrl === 'string'
       ? (replaceSettings ? remote.notebooklmUrl : remote.notebooklmUrl || state.notebooklmUrl || '')
       : state.notebooklmUrl || '';
+    state.instructionalMaterial = remote.instructionalMaterial && typeof remote.instructionalMaterial === 'object'
+      ? normalizeInstructionalMaterial(remote.instructionalMaterial)
+      : (replaceSettings ? null : state.instructionalMaterial || null);
+    state.connectionLink = typeof remote.connectionLink === 'string'
+      ? (replaceSettings ? remote.connectionLink : remote.connectionLink || state.connectionLink || '')
+      : state.connectionLink || '';
+    state.connectionActivity = typeof remote.connectionActivity === 'string'
+      ? (replaceSettings ? remote.connectionActivity : remote.connectionActivity || state.connectionActivity || '')
+      : state.connectionActivity || '';
+    state.internalizationLink = typeof remote.internalizationLink === 'string'
+      ? (replaceSettings ? remote.internalizationLink : remote.internalizationLink || state.internalizationLink || '')
+      : state.internalizationLink || '';
     state.students = mergeStudentResponses(remote.students || {}, localStudents);
     if (remote.analysis && typeof remote.analysis === 'object') {
       state.analysis = {
@@ -1262,12 +1486,17 @@
     updateCharacterOptions();
     generateWordCloud();
     renderStudentResults();
+    renderConnectionView();
   }
 
   function getClassSettingsPayload() {
     return {
       padletUrl: state.padletUrl,
       notebooklmUrl: state.notebooklmUrl,
+      instructionalMaterial: state.instructionalMaterial,
+      connectionLink: state.connectionLink,
+      connectionActivity: state.connectionActivity,
+      internalizationLink: state.internalizationLink,
       situations: state.situations,
       chars: state.chars,
       analysis: state.analysis
@@ -1429,6 +1658,10 @@
 
       state.padletUrl = parsed.padletUrl || '';
       state.notebooklmUrl = parsed.notebooklmUrl || '';
+      state.instructionalMaterial = normalizeInstructionalMaterial(parsed.instructionalMaterial);
+      state.connectionLink = typeof parsed.connectionLink === 'string' ? parsed.connectionLink : '';
+      state.connectionActivity = typeof parsed.connectionActivity === 'string' ? parsed.connectionActivity : '';
+      state.internalizationLink = typeof parsed.internalizationLink === 'string' ? parsed.internalizationLink : '';
       state.students = parsed.students && typeof parsed.students === 'object' ? parsed.students : {};
       state.analysis = parsed.analysis && typeof parsed.analysis === 'object'
         ? { summary: parsed.analysis.summary || '', frequency: parsed.analysis.frequency || {}, details: parsed.analysis.details || '', updatedAt: parsed.analysis.updatedAt || '' }
@@ -1465,6 +1698,17 @@
   function renderAdminFields() {
     document.getElementById('padlet-url').value = state.padletUrl;
     document.getElementById('notebooklm-url').value = state.notebooklmUrl;
+    document.getElementById('connection-link').value = state.connectionLink || '';
+    document.getElementById('connection-activity').value = state.connectionActivity || '';
+    document.getElementById('internalization-link').value = state.internalizationLink || '';
+    const material = normalizeInstructionalMaterial(state.instructionalMaterial);
+    const materialStatus = document.getElementById('instruction-material-status');
+    if (materialStatus) {
+      materialStatus.textContent = material
+        ? `저장된 교수자료: ${material.name}`
+        : '저장된 교수자료가 없습니다.';
+      materialStatus.classList.toggle('ready', Boolean(material));
+    }
     renderSituationOptions('admin-situation-select', true);
     renderSituationList();
     renderAnalysisView();
@@ -2069,10 +2313,47 @@ ${studentEntries}`;
     renderSituationView();
   }
 
+  async function goToConnection() {
+    const synced = await syncClassSettingsFromServer();
+    if (!synced) {
+      alert('선생님 컴퓨터 서버에 연결되지 않아 최신 활동을 가져오지 못했습니다.');
+    }
+    renderConnectionView();
+    showSub('student-home', 'student-connection');
+  }
+
+  function renderConnectionView() {
+    const activityView = document.getElementById('connection-activity-view');
+    const linkButton = document.getElementById('connection-link-btn');
+    if (!activityView || !linkButton) return;
+    activityView.textContent = state.connectionActivity || '선생님이 활동을 입력하면 이곳에 표시됩니다.';
+    linkButton.disabled = !state.connectionLink;
+  }
+
+  function openInstructionalMaterial() {
+    const material = normalizeInstructionalMaterial(state.instructionalMaterial);
+    if (!material) {
+      alert('관리자 페이지에서 교수자료를 먼저 저장해 주세요.');
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = material.dataUrl;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
   // ── Open external links ─────────────────────────────────
   function openLink(type) {
-    const url = type === 'padlet' ? state.padletUrl : state.notebooklmUrl;
-    const name = type === 'padlet' ? '패들렛' : '노트북LM';
+    const links = {
+      padlet: { url: state.padletUrl, name: '패들렛' },
+      notebooklm: { url: state.notebooklmUrl, name: '노트북LM' },
+      connection: { url: state.connectionLink, name: '함께 연결하기' },
+      internalization: { url: state.internalizationLink, name: '내면화하기' }
+    };
+    const { url, name } = links[type] || { url: '', name: '외부' };
     if (!url) {
       alert(`관리자 페이지에서 ${name} 링크를 먼저 저장해 주세요.`);
       return;
@@ -2147,10 +2428,88 @@ ${studentEntries}`;
     return String(text).replace(/['"\\]/g, '\\$&');
   }
 
-  // ── Admin: save ─────────────────────────────────────────
-  async function saveSituation() {
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(reader.error || new Error('파일을 읽지 못했습니다.'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function readClassMenuSettingsFromAdmin() {
+    const fileInput = document.getElementById('instruction-material-file');
+    const file = fileInput?.files?.[0];
+    let material = normalizeInstructionalMaterial(state.instructionalMaterial);
+
+    if (file) {
+      if (file.size > INSTRUCTION_MATERIAL_MAX_BYTES) {
+        alert('교수자료는 3MB 이하 파일만 저장할 수 있습니다.');
+        throw new Error('instruction material too large');
+      }
+      material = {
+        name: file.name,
+        type: file.type || 'application/octet-stream',
+        size: file.size,
+        dataUrl: await readFileAsDataUrl(file),
+        uploadedAt: new Date().toISOString()
+      };
+      fileInput.value = '';
+    }
+
     state.padletUrl = document.getElementById('padlet-url').value.trim();
     state.notebooklmUrl = document.getElementById('notebooklm-url').value.trim();
+    state.instructionalMaterial = normalizeInstructionalMaterial(material);
+    state.connectionLink = document.getElementById('connection-link').value.trim();
+    state.connectionActivity = document.getElementById('connection-activity').value.trim();
+    state.internalizationLink = document.getElementById('internalization-link').value.trim();
+  }
+
+  function showSaveNotice(serverSaved) {
+    const notice = document.getElementById('save-notice');
+    if (!notice) return;
+    notice.textContent = serverSaved
+      ? '✅ 서버에 저장되었습니다. 학생 페이지에 반영됩니다.'
+      : '⚠️ 이 컴퓨터에만 저장되었습니다. 서버 연결이 안 되어 학생 페이지에는 반영되지 않습니다.';
+    notice.classList.add('visible');
+    setTimeout(() => notice.classList.remove('visible'), serverSaved ? 3000 : 8000);
+  }
+
+  async function saveClassMenuSettings() {
+    try {
+      await readClassMenuSettingsFromAdmin();
+    } catch (error) {
+      return;
+    }
+    persistState();
+    const serverSaved = await syncClassSettingsToServer();
+    renderAdminFields();
+    renderConnectionView();
+    showSaveNotice(serverSaved);
+  }
+
+  async function clearInstructionalMaterial() {
+    if (!state.instructionalMaterial) {
+      alert('비울 교수자료가 없습니다.');
+      return;
+    }
+    if (!confirm('저장된 교수자료를 삭제할까요?')) return;
+    state.instructionalMaterial = null;
+    const fileInput = document.getElementById('instruction-material-file');
+    if (fileInput) fileInput.value = '';
+    persistState();
+    const serverSaved = await syncClassSettingsToServer();
+    renderAdminFields();
+    showSaveNotice(serverSaved);
+  }
+
+  // ── Admin: save ─────────────────────────────────────────
+  async function saveSituation() {
+    try {
+      await readClassMenuSettingsFromAdmin();
+    } catch (error) {
+      return;
+    }
     const title = document.getElementById('situation-title').value.trim() || `상황${state.situations.length + 1}`;
     const situationText = document.getElementById('situation-input').value.trim();
     const charCriteria = getCharCriteriaInput();
@@ -2182,12 +2541,7 @@ ${studentEntries}`;
     generateWordCloud();
     renderStudentResults();
 
-    const notice = document.getElementById('save-notice');
-    notice.textContent = serverSaved
-      ? '✅ 서버에 저장되었습니다. 학생 페이지에 반영됩니다.'
-      : '⚠️ 이 컴퓨터에만 저장되었습니다. 서버 연결이 안 되어 학생 페이지에는 반영되지 않습니다.';
-    notice.classList.add('visible');
-    setTimeout(() => notice.classList.remove('visible'), serverSaved ? 3000 : 8000);
+    showSaveNotice(serverSaved);
   }
 
   // ── Student: situation view ─────────────────────────────
