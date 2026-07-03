@@ -21,6 +21,7 @@ if (process.env.GEMINI_ENV_PATH) {
 }
 const app = express();
 const port = process.env.PORT || 3000;
+const deployVersion = '20260703-kongi-image-assets-v2';
 const openaiSecretPath = path.resolve(process.cwd(), 'openaiapi.env');
 const dataDir = path.resolve(process.env.DATA_DIR || path.join(process.cwd(), '.data'));
 const statePath = path.join(dataDir, 'conflict-state.json');
@@ -514,6 +515,14 @@ function mergeAppState(base, incoming) {
 
 app.get('/api/state', (req, res) => {
   res.json({ state: readAppState() });
+});
+
+app.get('/api/deploy-version', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({
+    version: deployVersion,
+    hasKongiImageAsset: fs.existsSync(path.join(process.cwd(), 'assets', 'kongi-cute-hoodie.png'))
+  });
 });
 
 app.post('/api/state', (req, res) => {
