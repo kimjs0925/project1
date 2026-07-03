@@ -1139,6 +1139,22 @@ tr.student-row:hover td {
   background: #ffffff;
 }
 
+.student-page .message.bot .avatar {
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(67, 143, 130, 0.24);
+  border-radius: 50%;
+  background:
+    url("/assets/kongi-cute-hoodie.png?v=20260703-kongi-layout-v3") center 44% / 72px auto no-repeat,
+    #ecfbf7;
+  box-shadow: 0 6px 14px rgba(49, 86, 82, 0.12);
+}
+
+.student-page .message.bot .avatar::before,
+.student-page .message.bot .avatar::after {
+  display: none;
+}
+
 .student-page .message.user .bubble {
   border-color: rgba(91, 128, 232, 0.22);
   background: linear-gradient(180deg, #f5f8ff, #eaf1ff);
@@ -1559,10 +1575,10 @@ tr.student-row:focus-visible {
 .student-hero-panel {
   position: relative;
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 214px 1fr;
   align-items: center;
-  min-height: 188px;
-  padding: 14px 28px 12px;
+  min-height: 154px;
+  padding: 12px 28px 10px;
   border-right: 1px solid var(--student-line);
   border-left: 1px solid var(--student-line);
   background:
@@ -1572,14 +1588,14 @@ tr.student-row:focus-visible {
 
 .student-hello-blob {
   position: relative;
-  height: 168px;
+  height: 132px;
 }
 
 .student-hello-blob .buddy {
   position: absolute;
-  left: -14px;
-  top: -54px;
-  width: 310px;
+  left: 0;
+  top: -38px;
+  width: 210px;
   filter: drop-shadow(0 12px 16px rgba(49, 86, 82, 0.12));
 }
 
@@ -2204,7 +2220,13 @@ tr.student-row:focus-visible {
   }
 
   .student-hello-blob {
-    height: 118px;
+    height: 128px;
+  }
+
+  .student-hello-blob .buddy {
+    left: 0;
+    top: -34px;
+    width: 185px;
   }
 
   .student-hero-copy h2 {
