@@ -21,7 +21,7 @@ if (process.env.GEMINI_ENV_PATH) {
 }
 const app = express();
 const port = process.env.PORT || 3000;
-const deployVersion = '20260703-kongi-layout-v3';
+const deployVersion = '20260703-kongi-layout-v4';
 const openaiSecretPath = path.resolve(process.cwd(), 'openaiapi.env');
 const dataDir = path.resolve(process.env.DATA_DIR || path.join(process.cwd(), '.data'));
 const statePath = path.join(dataDir, 'conflict-state.json');

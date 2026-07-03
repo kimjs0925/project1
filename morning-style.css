@@ -1145,7 +1145,7 @@ tr.student-row:hover td {
   border: 1px solid rgba(67, 143, 130, 0.24);
   border-radius: 50%;
   background:
-    url("/assets/kongi-cute-hoodie.png?v=20260703-kongi-layout-v3") center 44% / 72px auto no-repeat,
+    url("/assets/kongi-cute-hoodie.png?v=20260703-kongi-layout-v4") center 44% / 72px auto no-repeat,
     #ecfbf7;
   box-shadow: 0 6px 14px rgba(49, 86, 82, 0.12);
 }
@@ -2220,13 +2220,13 @@ tr.student-row:focus-visible {
   }
 
   .student-hello-blob {
-    height: 128px;
+    height: 150px;
   }
 
   .student-hello-blob .buddy {
     left: 0;
-    top: -34px;
-    width: 185px;
+    top: -18px;
+    width: 150px;
   }
 
   .student-hero-copy h2 {
