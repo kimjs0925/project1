@@ -1566,21 +1566,37 @@ function normalizeConflictChatPayload(body = {}) {
 }
 
 function buildConflictChatFallback(payload) {
-  const text = payload.message;
-  if (payload.notebooklmContext) {
-    const note = compactText(payload.notebooklmContext, 80);
-    return `참고 내용에서는 ${note}… 쪽을 떠올릴 수 있어. 네 말로는 “나는 이렇게 느꼈어”부터 시작해 보자.`;
-  }
+  const text = String(payload.message || '');
+  const contextHint = payload.notebooklmContext
+    ? ` 참고 내용도 떠올리면, ${pickNotebookContextHint(payload.notebooklmContext)}`
+    : '';
   if (/사과|미안/.test(text)) {
-    return '좋아. “아까는 미안했어. 나는 이렇게 느꼈어”처럼 짧게 말해 보면 어때?';
+    return `사과하려는 마음은 정말 좋아.${contextHint} 고칠 점은 이유를 길게 변명하지 않는 거야. “미안해, 다음엔 먼저 물어볼게”라고 말해 보자.`;
   }
   if (/화|짜증|속상|억울|슬퍼|무시/.test(text)) {
-    return '그 마음이 있었구나. 먼저 “나는 속상했어”처럼 내 마음을 차분히 말해 보자.';
+    return `네 마음을 알아차린 건 잘했어.${contextHint} 고칠 점은 상대를 탓하는 말보다 내 감정부터 말하는 거야. “나는 속상했어”로 시작해 보자.`;
   }
-  if (/어떻게|방법|해결|화해/.test(text)) {
-    return '먼저 마음을 말하고, 그다음 상대가 원한 것도 물어보면 좋아. 마지막에는 같이 지킬 약속을 하나 정해 보자.';
+  if (/상대|친구|마음|왜|이유/.test(text)) {
+    return `상대 마음을 생각해 보려는 점이 좋아.${contextHint} 고칠 점은 혼자 단정하지 않는 거야. “너는 어떤 마음이었어?”라고 물어보자.`;
   }
-  return '좋은 질문이야. 내 마음 말하기, 상대 마음 묻기, 같이 할 약속 정하기 중 하나부터 해 보자.';
+  if (/약속|다음|앞으로|규칙/.test(text)) {
+    return `다음 행동을 생각한 건 좋은 해결 태도야.${contextHint} 고칠 점은 약속을 너무 크게 잡지 않는 거야. 오늘 지킬 한 가지를 정해 보자.`;
+  }
+  if (/어떻게|방법|해결|화해|말/.test(text)) {
+    return `해결 방법을 찾으려는 점이 좋아.${contextHint} 고칠 점은 바로 결론부터 말하지 않는 거야. 마음 말하기, 상대 마음 묻기, 약속 정하기 순서로 해 보자.`;
+  }
+  return `말해 보려고 한 점이 좋아.${contextHint} 고칠 점은 조금 더 구체적으로 말하는 거야. 누구에게 어떤 말을 하고 싶은지 적어 볼래?`;
+}
+
+function pickNotebookContextHint(context) {
+  const text = compactText(context, 600);
+  const hints = [
+    { pattern: /감정|마음|느낌/, text: '먼저 마음을 차분히 말하는 게 중요해.' },
+    { pattern: /상대|친구|입장|공감/, text: '상대 마음도 물어보면 좋아.' },
+    { pattern: /약속|규칙|다음|실천/, text: '함께 지킬 작은 약속을 정하면 좋아.' },
+    { pattern: /사과|미안|화해/, text: '짧게 사과하고 다음 행동을 말하면 좋아.' }
+  ];
+  return hints.find(item => item.pattern.test(text))?.text || `${compactText(text, 54)}…를 참고할 수 있어.`;
 }
 
 function buildConflictChatPrompt(payload) {
@@ -1605,6 +1621,8 @@ function buildConflictChatPrompt(payload) {
 - 답변은 한국어 반말로, 초등학생에게 다정하게 말합니다.
 - 1~3문장, 120자 이내로 말합니다.
 - 학생 대신 정답을 길게 설명하지 말고, 말해 볼 문장이나 다음 질문을 제안합니다.
+- 학생의 방금 말에서 칭찬할 점 1개와 고칠 점 1개를 모두 짧게 말합니다.
+- 노트북LM 참고 내용은 그대로 반복하지 말고, 학생 질문에 맞는 부분만 골라 반영합니다.
 - 비난, 단정, 훈계보다 감정 말하기, 상대 마음 묻기, 함께 약속 정하기를 돕습니다.
 - suggestions는 2~3개, 각각 18자 이내로 짧게 만듭니다.
 - 학생이 위험하거나 다칠 수 있는 내용을 말하면 즉시 선생님께 말하라고 안내합니다.
