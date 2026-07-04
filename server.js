@@ -158,6 +158,7 @@ app.use(express.json({ limit: '5mb' }));
 const emptyState = {
   padletUrl: '',
   notebooklmUrl: '',
+  notebooklmContext: '',
   instructionalMaterial: null,
   connectionLink: '',
   connectionActivity: '',
@@ -416,6 +417,7 @@ function getClassSettings(current) {
   return {
     padletUrl: current.padletUrl,
     notebooklmUrl: current.notebooklmUrl,
+    notebooklmContext: current.notebooklmContext,
     instructionalMaterial: current.instructionalMaterial,
     connectionLink: current.connectionLink,
     connectionActivity: current.connectionActivity,
@@ -457,6 +459,7 @@ function normalizeAppState(value) {
   return {
     padletUrl: typeof source.padletUrl === 'string' ? source.padletUrl : '',
     notebooklmUrl: typeof source.notebooklmUrl === 'string' ? source.notebooklmUrl : '',
+    notebooklmContext: typeof source.notebooklmContext === 'string' ? source.notebooklmContext : '',
     instructionalMaterial: normalizeInstructionalMaterial(source.instructionalMaterial),
     connectionLink: typeof source.connectionLink === 'string' ? source.connectionLink : '',
     connectionActivity: typeof source.connectionActivity === 'string' ? source.connectionActivity : '',
@@ -1552,6 +1555,7 @@ function normalizeConflictChatPayload(body = {}) {
         ]))
         : {}
     },
+    notebooklmContext: compactText(body.notebooklmContext, 3000),
     history: Array.isArray(body.history)
       ? body.history.slice(-8).map(item => ({
         role: item?.role === 'user' ? 'user' : 'assistant',
@@ -1563,6 +1567,10 @@ function normalizeConflictChatPayload(body = {}) {
 
 function buildConflictChatFallback(payload) {
   const text = payload.message;
+  if (payload.notebooklmContext) {
+    const note = compactText(payload.notebooklmContext, 80);
+    return `참고 내용에서는 ${note}… 쪽을 떠올릴 수 있어. 네 말로는 “나는 이렇게 느꼈어”부터 시작해 보자.`;
+  }
   if (/사과|미안/.test(text)) {
     return '좋아. “아까는 미안했어. 나는 이렇게 느꼈어”처럼 짧게 말해 보면 어때?';
   }
@@ -1612,6 +1620,9 @@ ${chars}
 
 공감 기준:
 ${criteria}
+
+노트북LM 답변/요약 참고 내용:
+${payload.notebooklmContext || '없음'}
 
 최근 대화:
 ${history}

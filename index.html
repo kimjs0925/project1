@@ -1312,6 +1312,10 @@
         <input type="url" id="notebooklm-url" placeholder="https://notebooklm.google.com/...">
       </div>
       <div class="field-group">
+        <label class="field-label">노트북LM 답변 참고 내용</label>
+        <textarea id="notebooklm-context" placeholder="노트북LM에서 만든 답변이나 요약을 붙여넣으면 학생 채팅 답변에 참고됩니다."></textarea>
+      </div>
+      <div class="field-group">
         <label class="field-label">명시적 교수에 의한 배움다지기 교수자료</label>
         <input type="file" id="instruction-material-file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.doc,.docx,.ppt,.pptx">
         <div id="instruction-material-status" class="material-status">저장된 교수자료가 없습니다.</div>
@@ -1446,6 +1450,7 @@
   let state = {
     padletUrl: '',
     notebooklmUrl: '',
+    notebooklmContext: '',
     instructionalMaterial: null,
     connectionLink: '',
     connectionActivity: '',
@@ -1495,6 +1500,9 @@
     }
     if (!state.notebooklmUrl && typeof deploymentDefaults.notebooklmUrl === 'string') {
       state.notebooklmUrl = deploymentDefaults.notebooklmUrl;
+    }
+    if (!state.notebooklmContext && typeof deploymentDefaults.notebooklmContext === 'string') {
+      state.notebooklmContext = deploymentDefaults.notebooklmContext;
     }
     if (!state.instructionalMaterial) {
       state.instructionalMaterial = normalizeInstructionalMaterial(deploymentDefaults.instructionalMaterial);
@@ -1649,6 +1657,9 @@
     state.notebooklmUrl = typeof remote.notebooklmUrl === 'string'
       ? (replaceSettings ? remote.notebooklmUrl : remote.notebooklmUrl || state.notebooklmUrl || '')
       : state.notebooklmUrl || '';
+    state.notebooklmContext = typeof remote.notebooklmContext === 'string'
+      ? (replaceSettings ? remote.notebooklmContext : remote.notebooklmContext || state.notebooklmContext || '')
+      : state.notebooklmContext || '';
     state.instructionalMaterial = remote.instructionalMaterial && typeof remote.instructionalMaterial === 'object'
       ? normalizeInstructionalMaterial(remote.instructionalMaterial)
       : (replaceSettings ? null : state.instructionalMaterial || null);
@@ -1691,6 +1702,7 @@
     return {
       padletUrl: state.padletUrl,
       notebooklmUrl: state.notebooklmUrl,
+      notebooklmContext: state.notebooklmContext,
       instructionalMaterial: state.instructionalMaterial,
       connectionLink: state.connectionLink,
       connectionActivity: state.connectionActivity,
@@ -1856,6 +1868,7 @@
 
       state.padletUrl = parsed.padletUrl || '';
       state.notebooklmUrl = parsed.notebooklmUrl || '';
+      state.notebooklmContext = parsed.notebooklmContext || '';
       state.instructionalMaterial = normalizeInstructionalMaterial(parsed.instructionalMaterial);
       state.connectionLink = typeof parsed.connectionLink === 'string' ? parsed.connectionLink : '';
       state.connectionActivity = typeof parsed.connectionActivity === 'string' ? parsed.connectionActivity : '';
@@ -1896,6 +1909,7 @@
   function renderAdminFields() {
     document.getElementById('padlet-url').value = state.padletUrl;
     document.getElementById('notebooklm-url').value = state.notebooklmUrl;
+    document.getElementById('notebooklm-context').value = state.notebooklmContext || '';
     document.getElementById('connection-link').value = state.connectionLink || '';
     document.getElementById('connection-activity').value = state.connectionActivity || '';
     document.getElementById('internalization-link').value = state.internalizationLink || '';
@@ -2611,7 +2625,8 @@ ${studentEntries}`;
           studentId: currentStudent,
           situation,
           history: conflictChatHistory.slice(-8),
-          notebooklmUrl: state.notebooklmUrl ? 'configured' : ''
+          notebooklmUrl: state.notebooklmUrl ? 'configured' : '',
+          notebooklmContext: state.notebooklmContext || ''
         })
       });
       const data = await response.json().catch(() => ({}));
@@ -2768,6 +2783,7 @@ ${studentEntries}`;
 
     state.padletUrl = document.getElementById('padlet-url').value.trim();
     state.notebooklmUrl = document.getElementById('notebooklm-url').value.trim();
+    state.notebooklmContext = document.getElementById('notebooklm-context').value.trim();
     state.instructionalMaterial = normalizeInstructionalMaterial(material);
     state.connectionLink = document.getElementById('connection-link').value.trim();
     state.connectionActivity = document.getElementById('connection-activity').value.trim();
