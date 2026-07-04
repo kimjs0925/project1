@@ -1534,6 +1534,102 @@ function compactText(value, maxLength = 600) {
     .slice(0, maxLength);
 }
 
+function normalizeConflictChatPayload(body = {}) {
+  const situation = body.situation && typeof body.situation === 'object' ? body.situation : {};
+  return {
+    message: compactText(body.message, 500),
+    studentId: compactText(body.studentId, 30),
+    situation: {
+      title: compactText(situation.title, 80),
+      situation: compactText(situation.situation, 900),
+      chars: Array.isArray(situation.chars) ? situation.chars.map(char => compactText(char, 40)).filter(Boolean) : [],
+      criteriaByChar: situation.criteriaByChar && typeof situation.criteriaByChar === 'object'
+        ? Object.fromEntries(Object.entries(situation.criteriaByChar).map(([key, value]) => [
+          compactText(key, 40),
+          compactText(value, 300)
+        ]))
+        : {}
+    },
+    history: Array.isArray(body.history)
+      ? body.history.slice(-8).map(item => ({
+        role: item?.role === 'user' ? 'user' : 'assistant',
+        text: compactText(item?.text, 300)
+      })).filter(item => item.text)
+      : []
+  };
+}
+
+function buildConflictChatFallback(payload) {
+  const text = payload.message;
+  if (/사과|미안/.test(text)) {
+    return '좋아. “아까는 미안했어. 나는 이렇게 느꼈어”처럼 짧게 말해 보면 어때?';
+  }
+  if (/화|짜증|속상|억울|슬퍼|무시/.test(text)) {
+    return '그 마음이 있었구나. 먼저 “나는 속상했어”처럼 내 마음을 차분히 말해 보자.';
+  }
+  if (/어떻게|방법|해결|화해/.test(text)) {
+    return '먼저 마음을 말하고, 그다음 상대가 원한 것도 물어보면 좋아. 마지막에는 같이 지킬 약속을 하나 정해 보자.';
+  }
+  return '좋은 질문이야. 내 마음 말하기, 상대 마음 묻기, 같이 할 약속 정하기 중 하나부터 해 보자.';
+}
+
+function buildConflictChatPrompt(payload) {
+  const chars = payload.situation.chars.length ? payload.situation.chars.join(', ') : '등장인물 정보 없음';
+  const criteria = Object.entries(payload.situation.criteriaByChar || {})
+    .map(([name, value]) => `${name}: ${value}`)
+    .join('\n') || '없음';
+  const history = payload.history
+    .map(item => `${item.role === 'user' ? '학생' : '콩이'}: ${item.text}`)
+    .join('\n') || '없음';
+
+  return `너는 초등학생 갈등 해결 활동 앱의 귀여운 대화 친구 '콩이'입니다.
+학생이 갈등 상황에서 해결 방법을 스스로 말해 볼 수 있게 짧고 따뜻하게 대화하세요.
+
+반드시 아래 JSON 하나만 출력하세요. 마크다운 코드블록은 쓰지 마세요.
+{
+  "reply": "학생에게 보여 줄 콩이의 답변",
+  "suggestions": ["학생이 눌러볼 짧은 말", "다른 짧은 말"]
+}
+
+규칙:
+- 답변은 한국어 반말로, 초등학생에게 다정하게 말합니다.
+- 1~3문장, 120자 이내로 말합니다.
+- 학생 대신 정답을 길게 설명하지 말고, 말해 볼 문장이나 다음 질문을 제안합니다.
+- 비난, 단정, 훈계보다 감정 말하기, 상대 마음 묻기, 함께 약속 정하기를 돕습니다.
+- suggestions는 2~3개, 각각 18자 이내로 짧게 만듭니다.
+- 학생이 위험하거나 다칠 수 있는 내용을 말하면 즉시 선생님께 말하라고 안내합니다.
+
+현재 상황 제목:
+${payload.situation.title || '없음'}
+
+현재 갈등 상황:
+${payload.situation.situation || '없음'}
+
+등장인물:
+${chars}
+
+공감 기준:
+${criteria}
+
+최근 대화:
+${history}
+
+학생의 방금 말:
+${payload.message}`;
+}
+
+function normalizeConflictChatResult(value, payload) {
+  const source = value && typeof value === 'object' ? value : {};
+  const reply = compactText(source.reply, 160) || buildConflictChatFallback(payload);
+  const suggestions = Array.isArray(source.suggestions)
+    ? source.suggestions.map(item => compactText(item, 18)).filter(Boolean).slice(0, 3)
+    : [];
+  return {
+    reply,
+    suggestions: suggestions.length ? suggestions : ['내 마음 말하기', '상대 마음 묻기', '약속 정하기']
+  };
+}
+
 function normalizeGeminiModelName(value) {
   return String(value || '').trim().replace(/^models\//, '');
 }
@@ -1936,6 +2032,25 @@ app.get('/api/padlet-file-analysis', async (req, res) => {
     } catch (fallbackError) {
       return res.status(500).json({ error: 'Padlet학생글 파일을 분석하는 중 오류가 발생했습니다.' });
     }
+  }
+});
+
+app.post('/api/conflict-chat', async (req, res) => {
+  const payload = normalizeConflictChatPayload(req.body);
+  if (!payload.message) {
+    return res.status(400).json({ error: '대화할 내용을 입력해 주세요.' });
+  }
+
+  try {
+    const result = await requestOpenAIJson(buildConflictChatPrompt(payload));
+    return res.json({ ...normalizeConflictChatResult(result, payload), source: 'openai' });
+  } catch (error) {
+    console.warn('갈등 해결 채팅 fallback 사용:', error.message);
+    return res.json({
+      reply: buildConflictChatFallback(payload),
+      suggestions: ['내 마음 말하기', '상대 마음 묻기', '약속 정하기'],
+      source: 'fallback'
+    });
   }
 });
 

@@ -325,6 +325,116 @@
       border-radius: var(--radius-button); padding: 6px 14px; font-size: 13px; font-weight: 700;
     }
 
+    .chat-stage {
+      display: grid;
+      grid-template-columns: 112px minmax(0, 1fr);
+      gap: 16px;
+      align-items: stretch;
+    }
+    .chat-character {
+      min-height: 210px;
+      border-radius: var(--radius-card);
+      border: var(--border-width) solid var(--color-border);
+      background: linear-gradient(180deg, #fefce8 0%, #ecfeff 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: var(--color-text);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+    }
+    .chat-face {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: var(--color-surface);
+      border: 3px solid rgba(20, 184, 166, 0.32);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: 900;
+      color: var(--color-emerald-sprint);
+    }
+    .chat-name {
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .chat-panel {
+      min-height: 360px;
+      border: var(--border-width) solid var(--color-border);
+      border-radius: var(--radius-card);
+      background: var(--color-surface);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+    }
+    .chat-messages {
+      flex: 1;
+      padding: 18px;
+      overflow-y: auto;
+      background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+    }
+    .chat-row {
+      display: flex;
+      margin-bottom: 12px;
+    }
+    .chat-row.user {
+      justify-content: flex-end;
+    }
+    .chat-bubble {
+      max-width: min(86%, 520px);
+      padding: 12px 14px;
+      border-radius: 14px;
+      line-height: 1.6;
+      font-size: 14px;
+      word-break: keep-all;
+      overflow-wrap: anywhere;
+    }
+    .chat-row.assistant .chat-bubble {
+      background: #ecfeff;
+      border: 1px solid rgba(20, 184, 166, 0.24);
+      color: var(--color-text);
+    }
+    .chat-row.user .chat-bubble {
+      background: var(--color-midnight-abyss);
+      color: #fff;
+    }
+    .chat-suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 0 18px 12px;
+      background: var(--color-surface);
+    }
+    .chat-chip {
+      border: var(--border-width) solid var(--color-border);
+      background: var(--color-surface-soft);
+      color: var(--color-text);
+      border-radius: var(--radius-button);
+      padding: 8px 10px;
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .chat-input-row {
+      display: flex;
+      gap: 8px;
+      padding: 12px;
+      border-top: var(--border-width) solid var(--color-border);
+      background: var(--color-surface);
+    }
+    .chat-input-row input {
+      flex: 1;
+      margin: 0;
+    }
+    .chat-input-row button {
+      flex: 0 0 auto;
+      margin: 0;
+    }
+
     /* Form elements */
     label.field-label {
       display: block; font-size: 14px; font-weight: 700;
@@ -915,6 +1025,23 @@
         font-size: 24px;
       }
 
+      .chat-stage {
+        grid-template-columns: 1fr;
+      }
+      .chat-character {
+        min-height: 96px;
+        flex-direction: row;
+      }
+      .chat-panel {
+        min-height: 420px;
+      }
+      .chat-input-row {
+        flex-direction: column;
+      }
+      .chat-input-row button {
+        width: 100%;
+      }
+
       .inline-group {
         flex-direction: column;
         gap: 10px;
@@ -1059,13 +1186,13 @@
         <span class="btn-arrow">→</span>
       </button>
 
-      <button class="action-btn" onclick="openLink('notebooklm')">
+      <button class="action-btn" onclick="goToConflictChat()">
         <div class="btn-icon smile-letter mark-m">M</div>
         <div class="btn-text">
           <span class="btn-title">갈등 상황 해결방법 대화하기</span>
-          <span class="btn-desc">노트북LM과 해결 방법을 대화해요</span>
+          <span class="btn-desc">캐릭터와 해결 방법을 이야기해요</span>
         </div>
-        <span class="btn-arrow">↗</span>
+        <span class="btn-arrow">→</span>
       </button>
 
       <button class="action-btn" onclick="openInstructionalMaterial()">
@@ -1140,6 +1267,26 @@
         <div class="section-title">L 함께 연결하기</div>
         <div id="connection-activity-view" class="activity-view">선생님이 활동을 입력하면 이곳에 표시됩니다.</div>
         <button id="connection-link-btn" class="btn btn-primary btn-full" onclick="openLink('connection')">연결 링크 열기</button>
+      </div>
+    </div>
+
+    <div id="student-chat" class="sub-page">
+      <button class="back-btn" onclick="showSub('student-chat','student-home')">← 돌아가기</button>
+      <p class="page-title">갈등 해결 대화하기</p>
+      <p class="page-sub">콩이와 함께 말해 볼 해결 방법을 찾아보세요.</p>
+      <div class="chat-stage">
+        <div class="chat-character">
+          <div class="chat-face">콩</div>
+          <div class="chat-name">콩이</div>
+        </div>
+        <div class="chat-panel">
+          <div id="conflict-chat-messages" class="chat-messages"></div>
+          <div id="conflict-chat-suggestions" class="chat-suggestions"></div>
+          <div class="chat-input-row">
+            <input id="conflict-chat-input" type="text" placeholder="하고 싶은 말을 적어 보세요." onkeydown="handleConflictChatKey(event)">
+            <button id="conflict-chat-send" class="btn btn-primary" onclick="sendConflictChatMessage()">보내기</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1311,6 +1458,7 @@
   let currentStudent = null;
   let currentSituationId = '';
   let pendingStudentAction = '';
+  let conflictChatHistory = [];
 
   // 워드클라우드 필터 상태
   let wordCloudFilter = 'all'; // 'all', 'situation', 'character'
@@ -2378,6 +2526,111 @@ ${studentEntries}`;
     showSub('student-home', 'student-connection');
   }
 
+  async function goToConflictChat() {
+    if (!currentStudent) {
+      pendingStudentAction = 'chat';
+      document.getElementById('student-modal').style.display = 'flex';
+      return;
+    }
+
+    const synced = await syncClassSettingsFromServer();
+    if (!synced) {
+      alert('선생님 컴퓨터 서버에 연결되지 않아 최신 상황을 가져오지 못했습니다.');
+    }
+    if (!currentSituationId && state.situations.length) {
+      currentSituationId = state.situations[0].id;
+    }
+    showSub('student-home', 'student-chat');
+    initializeConflictChat();
+  }
+
+  function getConflictChatSituation() {
+    if (!currentSituationId && state.situations.length) {
+      currentSituationId = state.situations[0].id;
+    }
+    return getSituationById(currentSituationId) || state.situations[0] || null;
+  }
+
+  function initializeConflictChat() {
+    const situation = getConflictChatSituation();
+    if (!conflictChatHistory.length) {
+      const intro = situation
+        ? `${situation.title}을 같이 생각해 보자. 먼저 네가 하고 싶은 말을 편하게 적어줘.`
+        : '아직 선생님이 상황을 입력하지 않았어. 그래도 연습하고 싶은 갈등을 말해줘.';
+      conflictChatHistory = [{ role: 'assistant', text: intro }];
+    }
+    renderConflictChat();
+  }
+
+  function renderConflictChat(suggestions = []) {
+    const messagesEl = document.getElementById('conflict-chat-messages');
+    const suggestionsEl = document.getElementById('conflict-chat-suggestions');
+    if (!messagesEl || !suggestionsEl) return;
+    messagesEl.innerHTML = conflictChatHistory.map(item =>
+      `<div class="chat-row ${item.role === 'user' ? 'user' : 'assistant'}">
+        <div class="chat-bubble">${escapeHtml(item.text)}</div>
+      </div>`
+    ).join('');
+    suggestionsEl.innerHTML = suggestions.map(text =>
+      `<button class="chat-chip" onclick="sendConflictChatSuggestion('${escapeJs(text)}')">${escapeHtml(text)}</button>`
+    ).join('');
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function handleConflictChatKey(event) {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      sendConflictChatMessage();
+    }
+  }
+
+  function sendConflictChatSuggestion(text) {
+    const input = document.getElementById('conflict-chat-input');
+    if (input) input.value = text;
+    sendConflictChatMessage();
+  }
+
+  async function sendConflictChatMessage() {
+    const input = document.getElementById('conflict-chat-input');
+    const sendButton = document.getElementById('conflict-chat-send');
+    const message = input?.value.trim() || '';
+    if (!message) return;
+
+    const situation = getConflictChatSituation();
+    conflictChatHistory.push({ role: 'user', text: message });
+    input.value = '';
+    renderConflictChat();
+
+    if (sendButton) sendButton.disabled = true;
+    try {
+      const response = await fetch(apiUrl('/api/conflict-chat'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message,
+          studentId: currentStudent,
+          situation,
+          history: conflictChatHistory.slice(-8),
+          notebooklmUrl: state.notebooklmUrl ? 'configured' : ''
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || '답변을 만들지 못했습니다.');
+      conflictChatHistory.push({ role: 'assistant', text: data.reply || '조금 더 말해 줄래?' });
+      renderConflictChat(Array.isArray(data.suggestions) ? data.suggestions : []);
+    } catch (error) {
+      console.warn('갈등 해결 채팅 오류:', error);
+      conflictChatHistory.push({
+        role: 'assistant',
+        text: '지금은 천천히 생각해 보자. 내가 먼저 할 수 있는 말은 “나는 이렇게 느꼈어”처럼 내 마음부터 말해 보는 거야.'
+      });
+      renderConflictChat(['내 마음부터 말하기', '상대 마음 물어보기', '같이 정할 약속 찾기']);
+    } finally {
+      if (sendButton) sendButton.disabled = false;
+      input?.focus();
+    }
+  }
+
   function renderConnectionView() {
     const activityView = document.getElementById('connection-activity-view');
     const linkButton = document.getElementById('connection-link-btn');
@@ -2706,6 +2959,8 @@ ${studentEntries}`;
     renderSituationView();
     if (actionAfterSelect === 'situation') {
       await goToSituation();
+    } else if (actionAfterSelect === 'chat') {
+      await goToConflictChat();
     }
   }
 
