@@ -1726,7 +1726,7 @@
 
   async function syncClassSettingsFromServer() {
     try {
-      const response = await fetch(apiUrl('/api/class-settings'));
+      const response = await fetch(`${apiUrl('/api/class-settings')}?t=${Date.now()}`, { cache: 'no-store' });
       if (!response.ok) {
         updateSyncStatus(false);
         return false;

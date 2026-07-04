@@ -514,6 +514,7 @@ function mergeAppState(base, incoming) {
 }
 
 app.get('/api/state', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   res.json({ state: readAppState() });
 });
 
@@ -537,6 +538,7 @@ app.post('/api/state', (req, res) => {
 });
 
 app.get('/api/class-settings', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   const current = readAppState();
   res.json({ settings: getClassSettings(current) });
 });
