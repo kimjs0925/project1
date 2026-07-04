@@ -1810,21 +1810,27 @@
     await syncClassSettingsFromServer();
   }
 
+  function shouldAutoRefreshClassSettings() {
+    return Boolean(currentStudent && document.getElementById('student-page')?.classList.contains('active'));
+  }
+
   function startClassSettingsAutoRefresh() {
     clearInterval(classSettingsSyncTimer);
     classSettingsSyncTimer = setInterval(() => {
-      if (!document.hidden) {
+      if (!document.hidden && shouldAutoRefreshClassSettings()) {
         syncClassSettingsFromServer();
       }
     }, 10000);
 
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) {
+      if (!document.hidden && shouldAutoRefreshClassSettings()) {
         syncClassSettingsFromServer();
       }
     });
     window.addEventListener('focus', () => {
-      syncClassSettingsFromServer();
+      if (shouldAutoRefreshClassSettings()) {
+        syncClassSettingsFromServer();
+      }
     });
   }
 
