@@ -1186,13 +1186,13 @@
         <span class="btn-arrow">→</span>
       </button>
 
-      <button class="action-btn" onclick="goToConflictChat()">
+      <button class="action-btn" onclick="openNotebookLmChat()">
         <div class="btn-icon smile-letter mark-m">M</div>
         <div class="btn-text">
           <span class="btn-title">갈등 상황 해결방법 대화하기</span>
-          <span class="btn-desc">캐릭터와 해결 방법을 이야기해요</span>
+          <span class="btn-desc">노트북LM과 해결 방법을 대화해요</span>
         </div>
-        <span class="btn-arrow">→</span>
+        <span class="btn-arrow">↗</span>
       </button>
 
       <button class="action-btn" onclick="openInstructionalMaterial()">
@@ -2558,6 +2558,19 @@ ${studentEntries}`;
     initializeConflictChat();
   }
 
+  async function openNotebookLmChat() {
+    if (!currentStudent) {
+      pendingStudentAction = 'notebooklm';
+      document.getElementById('student-modal').style.display = 'flex';
+      return;
+    }
+    const synced = await syncClassSettingsFromServer();
+    if (!synced) {
+      alert('선생님 컴퓨터 서버에 연결되지 않아 최신 노트북LM 링크를 가져오지 못했습니다.');
+    }
+    openLink('notebooklm');
+  }
+
   function getConflictChatSituation() {
     if (!currentSituationId && state.situations.length) {
       currentSituationId = state.situations[0].id;
@@ -2977,6 +2990,8 @@ ${studentEntries}`;
       await goToSituation();
     } else if (actionAfterSelect === 'chat') {
       await goToConflictChat();
+    } else if (actionAfterSelect === 'notebooklm') {
+      await openNotebookLmChat();
     }
   }
 
