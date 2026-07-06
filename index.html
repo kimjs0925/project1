@@ -1381,27 +1381,6 @@
     <button class="btn btn-sm" style="margin-top: 10px; width: 100%;" onclick="deleteSelectedSituation()">🗑️ 현재 상황 삭제</button>
     <div class="notice" id="save-notice">✅ 저장되었습니다. 학생 페이지에 반영되었습니다.</div>
 
-    <div class="card card-success">
-      <div class="section-title">📁 저장된 상황 목록</div>
-      <div id="situation-list"></div>
-    </div>
-
-    <div class="card card-success">
-      <div class="section-title">📥 학생 작성 내용 다운로드</div>
-      <button class="btn btn-primary btn-full" onclick="downloadStudentResponsesCsv()">CSV 다운로드</button>
-    </div>
-
-    <div class="card card-accent">
-      <div class="section-title">🧠 갈등 상황 요약 분석</div>
-      <div class="field-group">
-        <label class="field-label">Padlet학생글 엑셀 파일</label>
-        <input type="file" id="padlet-xlsx-input" accept=".xlsx">
-      </div>
-      <button class="btn btn-primary btn-full" onclick="runPadletFileAnalysis()">파일 분석</button>
-      <div class="notice" id="analysis-notice">✅ 분석 결과가 업데이트되었습니다.</div>
-      <div id="analysis-result" style="margin-top: 1rem;"></div>
-    </div>
-
     <div class="card card-warm">
       <div class="section-title">☁️ 감정 워드클라우드</div>
       <div style="text-align: center; margin-bottom: 1rem;">
@@ -1436,6 +1415,27 @@
           <button class="btn btn-sm" onclick="downloadAllSituationWordClouds()">전체 상황 다운로드</button>
         </div>
       </div>
+    </div>
+
+    <div class="card card-success">
+      <div class="section-title">📁 저장된 상황 목록</div>
+      <div id="situation-list"></div>
+    </div>
+
+    <div class="card card-success">
+      <div class="section-title">📥 학생 작성 내용 다운로드</div>
+      <button class="btn btn-primary btn-full" onclick="downloadStudentResponsesCsv()">CSV 다운로드</button>
+    </div>
+
+    <div class="card card-accent">
+      <div class="section-title">🧠 갈등 상황 요약 분석</div>
+      <div class="field-group">
+        <label class="field-label">Padlet학생글 엑셀 파일</label>
+        <input type="file" id="padlet-xlsx-input" accept=".xlsx">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="runPadletFileAnalysis()">파일 분석</button>
+      <div class="notice" id="analysis-notice">✅ 분석 결과가 업데이트되었습니다.</div>
+      <div id="analysis-result" style="margin-top: 1rem;"></div>
     </div>
 
     <div class="card card-success">
@@ -2715,16 +2715,36 @@ ${studentEntries}`;
     const input = document.getElementById('char-name-input');
     const name = input.value.trim();
     if (!name || state.chars.includes(name)) { input.value = ''; return; }
+    const criteriaByChar = getCharCriteriaInput();
     state.chars.push(name);
+    syncCurrentSituationCharacters(criteriaByChar);
     input.value = '';
     renderCharTagsAdmin();
     persistState();
   }
 
   function removeChar(name) {
+    const criteriaByChar = getCharCriteriaInput();
+    delete criteriaByChar[name];
     state.chars = state.chars.filter(c => c !== name);
+    syncCurrentSituationCharacters(criteriaByChar);
     renderCharTagsAdmin();
     persistState();
+  }
+
+  function syncCurrentSituationCharacters(criteriaByChar) {
+    const situation = getSituationById(currentSituationId);
+    if (!situation) return;
+    const criteria = criteriaByChar && typeof criteriaByChar === 'object'
+      ? criteriaByChar
+      : getCharCriteriaInput();
+    situation.chars = state.chars.slice();
+    situation.criteriaByChar = {};
+    state.chars.forEach(char => {
+      if (Object.prototype.hasOwnProperty.call(criteria, char)) {
+        situation.criteriaByChar[char] = criteria[char];
+      }
+    });
   }
 
   function renderCharTagsAdmin() {
