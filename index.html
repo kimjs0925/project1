@@ -1478,6 +1478,42 @@
   const teacherServerUrl = configuredTeacherServerUrl || 'http://192.168.1.19:3000';
   const deploymentDefaults = window.CONFLICT_APP_DEFAULT_SETTINGS || {};
   const INSTRUCTION_MATERIAL_MAX_BYTES = 3 * 1024 * 1024;
+  const EMOTION_WORD_GROUPS = [
+    ['기쁨', '기쁘', '기뻐', '좋아', '흐뭇', '만족'],
+    ['즐거움', '즐거'],
+    ['행복', '행복'],
+    ['신남', '신나', '설레'],
+    ['뿌듯함', '뿌듯', '자랑스'],
+    ['고마움', '고마', '감사'],
+    ['슬픔', '슬프', '눈물'],
+    ['서운함', '서운', '섭섭'],
+    ['속상함', '속상'],
+    ['우울함', '우울'],
+    ['외로움', '외로', '쓸쓸'],
+    ['화남', '화나', '화났', '화남', '분노', '열받'],
+    ['짜증', '짜증'],
+    ['억울함', '억울'],
+    ['답답함', '답답', '불편'],
+    ['싫음', '싫', '밉'],
+    ['무서움', '무섭', '두려', '겁나', '공포'],
+    ['불안', '불안', '초조'],
+    ['걱정', '걱정'],
+    ['긴장', '긴장', '떨려'],
+    ['안심', '안심', '편안', '평온', '차분'],
+    ['미안함', '미안', '죄송'],
+    ['후회', '후회', '반성'],
+    ['부끄러움', '부끄', '창피', '민망'],
+    ['당황함', '당황', '황당'],
+    ['놀람', '놀람', '놀랐'],
+    ['실망', '실망'],
+    ['아쉬움', '아쉬'],
+    ['질투', '질투', '샘나', '시기'],
+    ['부러움', '부러'],
+    ['상처', '상처', '서럽', '괴롭', '힘들', '아프', '무시', '소외'],
+    ['공감', '공감', '이해'],
+    ['위로', '위로', '응원'],
+    ['존중', '배려', '존중']
+  ];
 
   function normalizeInstructionalMaterial(material) {
     if (!material || typeof material !== 'object') return null;
@@ -3183,22 +3219,79 @@ ${studentEntries}`;
       .filter(entry => typeof entry?.text === 'string' && entry.text.trim());
   }
 
-  function buildWordCloudList(entries, limit = 50) {
-    const allText = entries.map(e => e.text).join(' ');
-    const words = allText
-      .replace(/[.,!?;:()""''\[\]]/g, ' ')
-      .split(/\s+/)
-      .filter(w => w.length <= 10 && (/[가-힣]/.test(w) ? w.length >= 1 : w.length >= 2))
-      .filter(w => !['하고', '것', '같아요', '있을', '났을', '해서', '나는', '그리고', '하지만', '그래서', '아니라', '때문에', '정말로', '너무', '매우', '조금', '많이', '아주', '그렇게', '이렇게', '저렇게', '어떻게', '왜', '어디', '언제', '누가', '무엇을', '어떤', '이런', '저런', '그런'].includes(w))
-      .map(w => w.toLowerCase());
+  function isNegatedEmotionText(text, pattern) {
+    const index = text.indexOf(pattern);
+    if (index < 0) return false;
+    const before = text.slice(Math.max(0, index - 4), index);
+    const after = text.slice(index + pattern.length, Math.min(text.length, index + pattern.length + 8));
+    return /(안|못|아니)$/.test(before) || /(않|못|없|아니)/.test(after);
+  }
 
+  function extractEmotionWordsFromText(text) {
+    const normalized = String(text || '')
+      .replace(/[,\n\r/·|;:()""''\[\]{}<>!?~]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!normalized) return [];
+
+    const chunks = normalized
+      .split(' ')
+      .map(chunk => chunk.replace(/[^가-힣a-zA-Z]/g, '').toLowerCase())
+      .filter(Boolean);
+    const emotionWords = [];
+    chunks.forEach((compact, index) => {
+      const previous = chunks[index - 1] || '';
+      const next = chunks[index + 1] || '';
+      const negatedByNeighbor = /^(안|못|아니)$/.test(previous) || /^(않|못|없|아니)/.test(next);
+      EMOTION_WORD_GROUPS.forEach(([label, ...patterns]) => {
+        if (!negatedByNeighbor && patterns.some(pattern => compact.includes(pattern) && !isNegatedEmotionText(compact, pattern))) {
+          emotionWords.push(label);
+        }
+      });
+    });
+    return emotionWords;
+  }
+
+  function buildWordCloudList(entries, limit = 50) {
+    const words = entries.flatMap(entry => extractEmotionWordsFromText(entry?.text));
     const freq = {};
-    words.forEach(w => freq[w] = (freq[w] || 0) + 1);
+    words.forEach(word => freq[word] = (freq[word] || 0) + 1);
 
     return Object.entries(freq)
       .sort(([,a], [,b]) => b - a)
       .slice(0, limit)
       .map(([text, weight]) => [text, weight]);
+  }
+
+  function drawCloudPath(ctx, width, height) {
+    ctx.beginPath();
+    ctx.moveTo(width * 0.18, height * 0.66);
+    ctx.bezierCurveTo(width * 0.08, height * 0.66, width * 0.07, height * 0.48, width * 0.21, height * 0.45);
+    ctx.bezierCurveTo(width * 0.22, height * 0.30, width * 0.39, height * 0.25, width * 0.48, height * 0.35);
+    ctx.bezierCurveTo(width * 0.58, height * 0.19, width * 0.78, height * 0.27, width * 0.78, height * 0.46);
+    ctx.bezierCurveTo(width * 0.92, height * 0.46, width * 0.94, height * 0.66, width * 0.80, height * 0.69);
+    ctx.lineTo(width * 0.22, height * 0.69);
+    ctx.bezierCurveTo(width * 0.20, height * 0.69, width * 0.19, height * 0.68, width * 0.18, height * 0.66);
+    ctx.closePath();
+  }
+
+  function drawWordCloudBackground(canvas, clearCanvas = true) {
+    const ctx = canvas.getContext('2d');
+    if (clearCanvas) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    ctx.save();
+    drawCloudPath(ctx, canvas.width, canvas.height);
+    ctx.fillStyle = 'rgba(238, 242, 255, 0.72)';
+    ctx.strokeStyle = 'rgba(37, 99, 235, 0.20)';
+    ctx.lineWidth = Math.max(2, canvas.width * 0.006);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function cloudWordCloudShape(theta) {
+    return 1 + 0.16 * Math.cos(3 * theta) + 0.10 * Math.sin(5 * theta) + 0.07 * Math.cos(7 * theta);
   }
 
   function drawFallbackWordCloud(canvas, list) {
@@ -3208,15 +3301,15 @@ ${studentEntries}`;
       '#BB8FCE', '#85C1E9', '#F1948A', '#52BE80', '#F5B041'
     ];
     const positions = [
-      [0.5, 0.5], [0.28, 0.42], [0.72, 0.44], [0.42, 0.65], [0.63, 0.28],
-      [0.2, 0.62], [0.8, 0.62], [0.38, 0.27], [0.58, 0.74], [0.5, 0.18],
-      [0.16, 0.28], [0.84, 0.3], [0.24, 0.78], [0.76, 0.78], [0.5, 0.86]
+      [0.5, 0.52], [0.32, 0.46], [0.68, 0.47], [0.42, 0.61], [0.60, 0.36],
+      [0.24, 0.59], [0.78, 0.60], [0.38, 0.35], [0.58, 0.64], [0.5, 0.41],
+      [0.19, 0.50], [0.82, 0.50], [0.29, 0.66], [0.72, 0.66], [0.49, 0.28]
     ];
     const weights = list.map(([, weight]) => weight);
     const maxWeight = Math.max(...weights);
     const minWeight = Math.min(...weights);
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawWordCloudBackground(canvas);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
@@ -3242,7 +3335,7 @@ ${studentEntries}`;
     const ctx = canvas.getContext('2d');
 
     if (list.length === 0) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawWordCloudBackground(canvas);
       ctx.font = '18px Noto Sans KR';
       ctx.fillStyle = '#999';
       ctx.textAlign = 'center';
@@ -3271,6 +3364,7 @@ ${studentEntries}`;
 
     // 멘티미터 스타일 워드클라우드
     try {
+      drawWordCloudBackground(canvas);
       WordCloud(canvas, {
         list: list,
         gridSize: 8, // 더 촘촘하게
@@ -3293,6 +3387,10 @@ ${studentEntries}`;
           return colors[colorIndex];
         },
         backgroundColor: 'transparent',
+        clearCanvas: false,
+        shape: cloudWordCloudShape,
+        ellipticity: 0.62,
+        origin: [canvas.width / 2, canvas.height * 0.53],
         rotateRatio: 0.2, // 회전 줄임
         rotationSteps: 2,
         minRotation: -Math.PI/6,
@@ -3337,6 +3435,7 @@ ${studentEntries}`;
 
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, width, height);
+    drawWordCloudBackground(canvas, false);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#222222';
