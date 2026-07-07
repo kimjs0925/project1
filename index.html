@@ -1334,7 +1334,7 @@
       <div class="field-group">
         <label class="field-label">상황 선택</label>
         <div class="inline-group" style="margin-bottom:10px;">
-          <select id="admin-situation-select"></select>
+          <select id="admin-situation-select" onchange="handleAdminSituationSelectChange(this.value)"></select>
           <button class="btn btn-sm" onclick="loadSelectedAdminSituation()">선택 상황 불러오기</button>
         </div>
         <button class="btn btn-sm" style="width:100%;" onclick="startNewSituation()">+ 새 상황 만들기</button>
@@ -1454,6 +1454,7 @@
   };
   let currentStudent = null;
   let currentSituationId = '';
+  let currentAdminSituationId = '';
   let pendingStudentAction = '';
   let conflictChatHistory = [];
 
@@ -1956,17 +1957,23 @@
       materialStatus.classList.toggle('ready', Boolean(material));
     }
     renderSituationOptions('admin-situation-select', true);
+    const adminSituationSelect = document.getElementById('admin-situation-select');
+    if (adminSituationSelect) {
+      adminSituationSelect.value = currentAdminSituationId && state.situations.some(s => s.id === currentAdminSituationId)
+        ? currentAdminSituationId
+        : '';
+    }
     renderSituationList();
     renderAnalysisView();
 
-    if (currentSituationId) {
-      const situation = getSituationById(currentSituationId);
+    if (currentAdminSituationId) {
+      const situation = getSituationById(currentAdminSituationId);
       if (situation) {
         document.getElementById('situation-title').value = situation.title;
         document.getElementById('situation-input').value = situation.situation;
         state.chars = Array.isArray(situation.chars) ? situation.chars.slice() : [];
       } else {
-        currentSituationId = '';
+        currentAdminSituationId = '';
         document.getElementById('situation-title').value = '';
         document.getElementById('situation-input').value = '';
         state.chars = [];
@@ -2364,6 +2371,7 @@ ${studentEntries}`;
   }
 
   function selectAdminSituation(id) {
+    currentAdminSituationId = id;
     currentSituationId = id;
     const adminSelect = document.getElementById('admin-situation-select');
     if (adminSelect) adminSelect.value = id || '';
@@ -2390,7 +2398,13 @@ ${studentEntries}`;
     selectAdminSituation(select?.value || '');
   }
 
+  function handleAdminSituationSelectChange(id) {
+    if (id) selectAdminSituation(id);
+    else startNewSituation();
+  }
+
   function startNewSituation() {
+    currentAdminSituationId = '';
     currentSituationId = '';
     state.chars = [];
     document.getElementById('admin-situation-select').value = '';
@@ -2522,20 +2536,23 @@ ${studentEntries}`;
   }
 
   function deleteSelectedSituation() {
-    if (!currentSituationId) {
+    const targetSituationId = currentAdminSituationId || document.getElementById('admin-situation-select')?.value || '';
+    if (!targetSituationId) {
       alert('삭제할 상황을 선택해 주세요.');
       return;
     }
     if (!confirm('선택한 상황과 해당 상황에 대한 학생 입력 데이터를 삭제하시겠습니까?')) return;
 
-    state.situations = state.situations.filter(s => s.id !== currentSituationId);
+    state.situations = state.situations.filter(s => s.id !== targetSituationId);
     Object.values(state.students).forEach(student => {
       if (student.responses) {
-        delete student.responses[currentSituationId];
+        delete student.responses[targetSituationId];
       }
     });
 
+    currentAdminSituationId = '';
     currentSituationId = state.situations[0]?.id || '';
+    state.chars = [];
     persistState();
     syncClassSettingsToServer();
     renderAdminFields();
@@ -2778,7 +2795,7 @@ ${studentEntries}`;
   }
 
   function syncCurrentSituationCharacters() {
-    const situation = getSituationById(currentSituationId);
+    const situation = getSituationById(currentAdminSituationId);
     if (!situation) return;
     situation.chars = state.chars.slice();
     situation.criteriaByChar = {};
@@ -2892,8 +2909,8 @@ ${studentEntries}`;
     const title = document.getElementById('situation-title').value.trim() || `상황${state.situations.length + 1}`;
     const situationText = document.getElementById('situation-input').value.trim();
 
-    if (currentSituationId) {
-      const situation = getSituationById(currentSituationId);
+    if (currentAdminSituationId) {
+      const situation = getSituationById(currentAdminSituationId);
       if (situation) {
         situation.title = title;
         situation.situation = situationText;
@@ -2909,6 +2926,7 @@ ${studentEntries}`;
         chars: state.chars.slice(),
         criteriaByChar: {}
       });
+      currentAdminSituationId = id;
       currentSituationId = id;
     }
 
