@@ -521,14 +521,6 @@
       background: none; border: none; cursor: pointer; color: var(--color-midnight-abyss);
       font-size: 14px; padding: 0; line-height: 1; display: flex; align-items: center;
     }
-    .char-criteria-row {
-      margin-bottom: 12px;
-    }
-    .char-criteria-row textarea {
-      min-height: 64px;
-      margin-top: 6px;
-    }
-
     /* Emotion list */
     .emotion-item {
       border: var(--border-width) solid var(--color-border);
@@ -1340,8 +1332,12 @@
       <div class="section-title">�️ 상황 관리</div>
 
       <div class="field-group">
-        <label class="field-label">편집할 상황 선택</label>
-        <select id="admin-situation-select" onchange="selectAdminSituation(this.value)"></select>
+        <label class="field-label">상황 선택</label>
+        <div class="inline-group" style="margin-bottom:10px;">
+          <select id="admin-situation-select"></select>
+          <button class="btn btn-sm" onclick="loadSelectedAdminSituation()">선택 상황 불러오기</button>
+        </div>
+        <button class="btn btn-sm" style="width:100%;" onclick="startNewSituation()">+ 새 상황 만들기</button>
       </div>
       <div class="field-group">
         <label class="field-label">새 상황 제목</label>
@@ -1360,10 +1356,6 @@
           <button class="btn btn-sm" onclick="addChar()">+ 추가</button>
         </div>
         <div id="char-tags-admin"></div>
-      </div>
-      <div class="field-group">
-        <label class="field-label">각 등장인물 공감 기준</label>
-        <div id="char-criteria-admin"></div>
       </div>
       <div class="field-group">
         <label class="field-label">학생 감정 입력 삭제</label>
@@ -1986,7 +1978,6 @@
     }
 
     renderCharTagsAdmin();
-    renderCharCriteriaInputs();
     renderAdminEmotionFilters();
     renderAdminEmotionEntries();
 
@@ -2022,6 +2013,7 @@
       `<div class="student-result">
         <span class="student-name">${s.title}</span>
         <span class="empathy-level">${s.situation.slice(0, 40)}${s.situation.length > 40 ? '…' : ''}</span>
+        <button class="btn btn-sm" onclick="selectAdminSituation('${escapeJs(s.id)}')">불러오기</button>
       </div>`
     ).join('');
   }
@@ -2373,6 +2365,8 @@ ${studentEntries}`;
 
   function selectAdminSituation(id) {
     currentSituationId = id;
+    const adminSelect = document.getElementById('admin-situation-select');
+    if (adminSelect) adminSelect.value = id || '';
     if (id) {
       const situation = getSituationById(id);
       if (situation) {
@@ -2385,6 +2379,24 @@ ${studentEntries}`;
       document.getElementById('situation-input').value = '';
       state.chars = [];
     }
+    renderCharTagsAdmin();
+    renderSituationOptions('student-situation-select', true);
+    renderAdminEmotionFilters();
+    renderAdminEmotionEntries();
+  }
+
+  function loadSelectedAdminSituation() {
+    const select = document.getElementById('admin-situation-select');
+    selectAdminSituation(select?.value || '');
+  }
+
+  function startNewSituation() {
+    currentSituationId = '';
+    state.chars = [];
+    document.getElementById('admin-situation-select').value = '';
+    document.getElementById('situation-title').value = '';
+    document.getElementById('situation-input').value = '';
+    document.getElementById('char-name-input').value = '';
     renderCharTagsAdmin();
     renderSituationOptions('student-situation-select', true);
     renderAdminEmotionFilters();
@@ -2751,36 +2763,25 @@ ${studentEntries}`;
     const input = document.getElementById('char-name-input');
     const name = input.value.trim();
     if (!name || state.chars.includes(name)) { input.value = ''; return; }
-    const criteriaByChar = getCharCriteriaInput();
     state.chars.push(name);
-    syncCurrentSituationCharacters(criteriaByChar);
+    syncCurrentSituationCharacters();
     input.value = '';
     renderCharTagsAdmin();
     persistState();
   }
 
   function removeChar(name) {
-    const criteriaByChar = getCharCriteriaInput();
-    delete criteriaByChar[name];
     state.chars = state.chars.filter(c => c !== name);
-    syncCurrentSituationCharacters(criteriaByChar);
+    syncCurrentSituationCharacters();
     renderCharTagsAdmin();
     persistState();
   }
 
-  function syncCurrentSituationCharacters(criteriaByChar) {
+  function syncCurrentSituationCharacters() {
     const situation = getSituationById(currentSituationId);
     if (!situation) return;
-    const criteria = criteriaByChar && typeof criteriaByChar === 'object'
-      ? criteriaByChar
-      : getCharCriteriaInput();
     situation.chars = state.chars.slice();
     situation.criteriaByChar = {};
-    state.chars.forEach(char => {
-      if (Object.prototype.hasOwnProperty.call(criteria, char)) {
-        situation.criteriaByChar[char] = criteria[char];
-      }
-    });
   }
 
   function renderCharTagsAdmin() {
@@ -2790,28 +2791,6 @@ ${studentEntries}`;
           <button onclick="removeChar('${escapeJs(c)}')" title="${escapeHtml(c)} 삭제">✕</button>
         </span>`
       ).join('');
-    renderCharCriteriaInputs();
-  }
-
-  function renderCharCriteriaInputs() {
-    const container = document.getElementById('char-criteria-admin');
-    const situation = getSituationById(currentSituationId);
-    const criteriaByChar = situation?.criteriaByChar || {};
-    container.innerHTML = state.chars.map(c =>
-      `<div class="char-criteria-row">
-        <div class="char-edit-tag">${escapeHtml(c)}</div>
-        <textarea class="char-criteria-input" data-char="${escapeHtml(c)}" placeholder="${escapeHtml(c)} 공감 기준을 입력하세요.">${escapeHtml(criteriaByChar[c] || '')}</textarea>
-      </div>`
-    ).join('');
-  }
-
-  function getCharCriteriaInput() {
-    const result = {};
-    document.querySelectorAll('.char-criteria-input').forEach(textarea => {
-      const char = textarea.dataset.char;
-      if (char) result[char] = textarea.value.trim();
-    });
-    return result;
   }
 
   function escapeHtml(text) {
@@ -2912,7 +2891,6 @@ ${studentEntries}`;
     }
     const title = document.getElementById('situation-title').value.trim() || `상황${state.situations.length + 1}`;
     const situationText = document.getElementById('situation-input').value.trim();
-    const charCriteria = getCharCriteriaInput();
 
     if (currentSituationId) {
       const situation = getSituationById(currentSituationId);
@@ -2920,7 +2898,7 @@ ${studentEntries}`;
         situation.title = title;
         situation.situation = situationText;
         situation.chars = state.chars.slice();
-        situation.criteriaByChar = { ...charCriteria };
+        situation.criteriaByChar = {};
       }
     } else {
       const id = `situation-${Date.now()}`;
@@ -2929,7 +2907,7 @@ ${studentEntries}`;
         title,
         situation: situationText,
         chars: state.chars.slice(),
-        criteriaByChar: { ...charCriteria }
+        criteriaByChar: {}
       });
       currentSituationId = id;
     }
@@ -3610,46 +3588,6 @@ ${studentEntries}`;
     link.remove();
   }
 
-  // ── Empathy evaluation ──────────────────────────────────
-  function evaluateEmpathy(studentId, situationId) {
-    const situation = getSituationById(situationId);
-    const emotions = state.students[studentId]?.responses?.[situationId] || [];
-    if (!emotions.length || !situation?.criteriaByChar) return {};
-    const charScores = {};
-    situation.chars.forEach(char => {
-      const charEmotions = emotions.filter(e => e.who === char);
-      if (!charEmotions.length) {
-        charScores[char] = 0;
-        return;
-      }
-      const criteria = situation.criteriaByChar[char];
-      if (!criteria) {
-        charScores[char] = 0;
-        return;
-      }
-      const criteriaWords = criteria.split(/\s+/).filter(w => w.length > 1);
-      if (!criteriaWords.length) {
-        charScores[char] = 0;
-        return;
-      }
-      let totalScore = 0;
-      charEmotions.forEach(e => {
-        const textWords = e.text.split(/\s+/);
-        const matches = criteriaWords.filter(cw => textWords.some(tw => tw.includes(cw))).length;
-        totalScore += matches / criteriaWords.length;
-      });
-      charScores[char] = totalScore / charEmotions.length;
-    });
-    return charScores;
-  }
-
-  function getEmpathyLevel(score) {
-    if (score >= 0.8) return { level: '공감숲', icon: '🌲' };
-    if (score >= 0.6) return { level: '공감열매', icon: '🍎' };
-    if (score >= 0.4) return { level: '공감나무', icon: '🌳' };
-    return { level: '공감새싹', icon: '🌱' };
-  }
-
   // ── Render student results ─────────────────────────────
   function renderStudentResults() {
     const el = document.getElementById('student-results');
@@ -3659,11 +3597,10 @@ ${studentEntries}`;
     }
     el.innerHTML = state.situations.map(situation => {
       const items = Object.keys(state.students).map(id => {
-        const charScores = evaluateEmpathy(id, situation.id);
+        const responses = state.students[id]?.responses?.[situation.id] || [];
         const charLevels = situation.chars.map(char => {
-          const score = charScores[char] || 0;
-          const { level, icon } = getEmpathyLevel(score);
-          return `${char}: ${icon} ${level} (${(score * 100).toFixed(0)}%)`;
+          const count = responses.filter(entry => entry?.who === char).length;
+          return `${char}: ${count}개 입력`;
         }).join(', ');
         return `<div class="student-result">
           <span class="student-name">${id}번 학생</span>
