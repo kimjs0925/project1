@@ -1727,6 +1727,11 @@
     renderConnectionView();
   }
 
+  function applyRemoteStudents(remote) {
+    if (!remote || typeof remote !== 'object') return;
+    state.students = mergeStudentResponses(remote.students || {}, state.students || {});
+  }
+
   function getClassSettingsPayload() {
     return {
       padletUrl: state.padletUrl,
@@ -1804,7 +1809,7 @@
         return false;
       }
       const data = await response.json();
-      applyRemoteState(data.state);
+      applyRemoteStudents(data.state);
       saveStateLocally();
       updateSyncStatus(true);
       return true;
@@ -1823,7 +1828,7 @@
         return false;
       }
       const data = await response.json();
-      applyRemoteState(data.state);
+      applyRemoteStudents(data.state);
       saveStateLocally();
       renderSyncedState();
       updateSyncStatus(true);
@@ -2784,14 +2789,21 @@ ${studentEntries}`;
     syncCurrentSituationCharacters();
     input.value = '';
     renderCharTagsAdmin();
-    persistState();
+    persistAdminCharacterChanges();
   }
 
   function removeChar(name) {
     state.chars = state.chars.filter(c => c !== name);
     syncCurrentSituationCharacters();
     renderCharTagsAdmin();
-    persistState();
+    persistAdminCharacterChanges();
+  }
+
+  function persistAdminCharacterChanges() {
+    saveStateLocally();
+    if (currentAdminSituationId) {
+      syncClassSettingsToServer();
+    }
   }
 
   function syncCurrentSituationCharacters() {
