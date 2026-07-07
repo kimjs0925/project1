@@ -1430,10 +1430,6 @@
       <div id="analysis-result" style="margin-top: 1rem;"></div>
     </div>
 
-    <div class="card card-success">
-      <div class="section-title">📊 학생 공감 능력 결과</div>
-      <div id="student-results"></div>
-    </div>
   </div>
 </div>
 
@@ -3621,6 +3617,7 @@ ${studentEntries}`;
   // ── Render student results ─────────────────────────────
   function renderStudentResults() {
     const el = document.getElementById('student-results');
+    if (!el) return;
     if (!state.situations.length) {
       el.innerHTML = '<div class="empty-state">저장된 상황이 없습니다.</div>';
       return;
