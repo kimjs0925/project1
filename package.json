@@ -5,6 +5,7 @@
   "type": "module",
   "main": "server.js",
   "scripts": {
+    "check": "node scripts/harness-check.mjs",
     "start": "node server.js"
   },
   "dependencies": {
