@@ -21,7 +21,7 @@ if (process.env.GEMINI_ENV_PATH) {
 }
 const app = express();
 const port = process.env.PORT || 3000;
-const deployVersion = '20260708-class-5-6';
+const deployVersion = '20260708-feedback-harness';
 const openaiSecretPath = path.resolve(process.cwd(), 'openaiapi.env');
 const dataDir = path.resolve(process.env.DATA_DIR || path.join(process.cwd(), '.data'));
 const statePath = path.join(dataDir, 'conflict-state.json');
@@ -1703,60 +1703,115 @@ function buildGeminiTtsPrompt(text) {
   ].join('\n');
 }
 
-function buildMorningFeedbackFallback(payload = {}) {
+function compactFeedbackSeed(value) {
+  const text = String(value || '');
+  let hash = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = ((hash << 5) - hash + text.charCodeAt(index)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+function pickMorningFeedback(candidates, payload = {}, salt = '') {
+  const options = candidates.filter(Boolean);
+  if (!options.length) return '네 이야기 잘 들었어. 고마워.';
+  const seed = compactFeedbackSeed(`${payload.questionKey || ''}|${payload.answer || ''}|${payload.summary || ''}|${salt}`);
+  return options[seed % options.length];
+}
+
+function buildMorningFeedbackVariants(payload = {}) {
   const key = compactText(payload.questionKey, 24);
-  const text = compactText(`${payload.summary || ''} ${payload.answer || ''}`, 260).replace(/\s+/g, '');
+  const text = compactText(`${payload.summary || ''} ${payload.answer || ''}`, 300).replace(/\s+/g, '');
+  const subject = (text.match(/발표|시험|숙제|수업|학원|대회|친구|가족|동생|엄마|아빠/) || [''])[0];
 
   if (key === 'sleep') {
+    if (/꿈|악몽/.test(text)) {
+      return ['꿈 때문에 잠이 편하지 않았구나.', '꿈이 마음에 남았구나. 천천히 시작하자.'];
+    }
     if (/부족|피곤|못잤|잠이안|졸려|늦게|자주깼|설쳤/.test(text)) {
-      return '잠이 좀 불편했구나. 천천히 시작해도 괜찮아.';
+      return ['잠이 부족했구나. 오늘은 천천히 가도 괜찮아.', '피곤함이 남아 있구나. 몸을 살피며 시작하자.', '밤이 편하지 않았구나. 무리하지 않아도 돼.'];
     }
     if (/양호|잘잤|푹잤|충분|좋았/.test(text)) {
-      return '푹 잤구나. 오늘 아침이 가볍게 느껴지겠다.';
+      return ['푹 잤구나. 아침이 조금 가볍겠다.', '잘 쉬었다니 다행이야. 좋은 시작이네.', '잠이 괜찮았다니 몸도 덜 무겁겠다.'];
     }
-    return '잠 이야기도 들었어. 오늘 몸 느낌을 살펴볼게.';
+    return ['잠 이야기도 들었어. 몸 느낌을 같이 볼게.', '오늘 몸 상태를 알려줘서 고마워.'];
   }
 
   if (key === 'breakfast') {
     if (/먹지않음|안먹|못먹|굶/.test(text)) {
-      return '아침을 못 먹었구나. 배고프면 선생님께 살짝 말해줘.';
+      return ['아침을 못 먹었구나. 배고프면 선생님께 말해줘.', '속이 비어 있겠구나. 힘들면 꼭 알려줘.', '아침을 건너뛰었구나. 몸 느낌을 살펴볼게.'];
     }
-    if (/먹음|조금먹음|먹었|밥|빵|시리얼|과일|우유/.test(text)) {
-      return '아침을 챙겼구나. 조금 든든하겠다.';
+    if (/조금|반만|우유|과자만|빵만/.test(text)) {
+      return ['조금이라도 먹었구나. 몸이 어떤지 같이 보자.', '많지는 않아도 챙겼구나. 배고프면 말해줘.', '조금 먹은 아침이었구나. 무리하지 말자.'];
     }
-    return '아침 이야기도 들었어. 몸 느낌도 같이 볼게.';
+    if (/먹음|먹었|밥|빵|시리얼|과일|우유/.test(text)) {
+      return ['아침을 챙겼구나. 조금 든든하겠다.', '먹고 왔다니 다행이야. 힘이 나면 좋겠다.', '몸에 에너지를 조금 채웠구나.'];
+    }
+    return ['아침 이야기도 들었어. 몸 느낌도 같이 볼게.', '먹는 이야기 알려줘서 고마워.'];
   }
 
   if (key === 'special') {
     if (/없음|없어|없었|별일없|괜찮/.test(text)) {
-      return '특별한 일이 없었다면 편하게 시작해도 괜찮아.';
+      return ['특별한 일이 없었다면 편하게 시작하자.', '큰일 없이 왔다니 다행이야.', '별일 없었다고 말해줘도 충분해.'];
     }
-    return '그 일이 마음에 남아 있었구나. 말해줘서 고마워.';
+    if (/걱정|불안|긴장|무서|떨/.test(text)) {
+      return subject
+        ? [`${subject} 때문에 긴장됐구나. 천천히 말해도 돼.`, `${subject} 일이 마음에 남았구나. 같이 살펴볼게.`]
+        : ['긴장되는 일이 있었구나. 천천히 말해도 돼.', '마음에 걸리는 일이 있었구나. 말해줘서 고마워.'];
+    }
+    if (/기대|신나|좋|재밌|설레/.test(text)) {
+      return subject
+        ? [`${subject} 생각에 설렜구나. 그 느낌 좋다.`, `${subject} 일이 기대되는구나. 반가운 마음이네.`]
+        : ['기대되는 일이 있구나. 그 마음이 반갑다.', '좋은 일이 마음에 있구나. 들려줘서 고마워.'];
+    }
+    return subject
+      ? [`${subject} 일이 마음에 남았구나. 말해줘서 고마워.`, `${subject} 이야기를 들었어. 마음에 잘 담아둘게.`]
+      : ['그 일이 마음에 남아 있었구나. 말해줘서 고마워.', '오늘 알아두면 좋을 일을 알려줘서 고마워.'];
   }
 
   if (key === 'mood') {
-    if (/밝음|좋|기뻐|행복|신나|재밌|설레/.test(text)) {
-      return '좋은 기분이라니 반가워. 그 느낌이 이어지면 좋겠다.';
+    if (/밝음|좋|기뻐|행복|신나|재밌|설레|기대/.test(text)) {
+      return ['좋은 기분이라니 반가워. 그 느낌이 이어지면 좋겠다.', '마음이 밝은 쪽이구나. 그 기운 좋다.', '신나는 마음이 있구나. 들으니 나도 반가워.'];
     }
-    if (/피곤|속상|슬퍼|우울|답답|화남|짜증|걱정|불안|무서|긴장|힘들/.test(text)) {
-      return '마음이 편하지만은 않았구나. 천천히 가도 괜찮아.';
+    if (/피곤|졸려|힘들|지침/.test(text)) {
+      return ['몸과 마음이 무겁구나. 천천히 가도 괜찮아.', '피곤함이 남아 있구나. 오늘은 무리하지 말자.', '힘이 덜 나는 아침이구나. 살살 시작하자.'];
+    }
+    if (/걱정|불안|무서|긴장|떨|발표|시험/.test(text)) {
+      return subject
+        ? [`${subject} 때문에 마음이 떨렸구나. 천천히 해도 괜찮아.`, `${subject} 생각에 긴장됐구나. 숨 한번 고르자.`]
+        : ['걱정되는 마음이 있구나. 천천히 말해도 괜찮아.', '긴장되는 마음이구나. 숨 한번 고르자.', '불안한 마음을 말해줘서 고마워.'];
+    }
+    if (/속상|슬퍼|우울|답답|화남|짜증|서운/.test(text)) {
+      return ['마음이 편하지만은 않았구나. 천천히 가도 괜찮아.', '속상한 마음이 있었구나. 말해줘서 고마워.', '답답한 마음을 들었어. 혼자 두지 않을게.'];
     }
     if (/보통|괜찮|그냥|모르겠/.test(text)) {
-      return '보통이라고 말해줘도 충분해. 그런 날도 있지.';
+      return ['보통이라고 말해줘도 충분해. 그런 날도 있지.', '아직 잘 모르겠는 마음도 괜찮아.', '그냥 그런 아침이구나. 천천히 시작하자.'];
     }
-    return '지금 마음을 들었어. 그 마음 그대로 괜찮아.';
+    return ['지금 마음을 들었어. 그 마음 그대로 괜찮아.', '오늘 마음을 말해줘서 고마워.'];
   }
 
   if (key === 'conflict') {
     if (/없음|없어|없었|별일없|괜찮/.test(text)) {
-      return '친구 일로 마음에 남은 게 없다니 편하겠다.';
+      return ['친구 일로 남은 게 없다니 다행이야.', '친구 일은 괜찮았구나. 편하게 시작하자.', '마음에 걸린 친구 일이 없었구나.'];
     }
-    return '친구 일이 마음에 남았구나. 말해줘서 고마워.';
+    if (/미안|사과|화해/.test(text)) {
+      return ['미안한 마음이 남았구나. 천천히 풀어가도 돼.', '화해하고 싶은 마음이 있구나. 잘 들었어.'];
+    }
+    if (/싸웠|다툼|말다툼|화났|짜증/.test(text)) {
+      return ['친구와 부딪힌 일이 있었구나. 마음을 잘 들었어.', '다툼이 마음에 남았구나. 천천히 살펴보자.'];
+    }
+    if (/놀림|괴롭|때렸|맞았|무시|따돌/.test(text)) {
+      return ['힘든 일이 있었구나. 선생님이 볼 수 있게 남겨둘게.', '혼자 참기 어려운 일이었구나. 꼭 확인할게.'];
+    }
+    return ['친구 일이 마음에 남았구나. 말해줘서 고마워.', '친구와 있었던 일을 들었어. 천천히 같이 볼게.'];
   }
 
-  return '네 이야기 잘 들었어. 고마워.';
+  return ['네 이야기 잘 들었어. 고마워.', '말해줘서 고마워. 마음에 잘 담아둘게.'];
 }
 
+function buildMorningFeedbackFallback(payload = {}) {
+  return pickMorningFeedback(buildMorningFeedbackVariants(payload), payload);
+}
 const morningFeedbackTopicPatterns = {
   sleep: /잠|잤|자서|졸|피곤|늦게|꿈|수면|밤|설쳤|깼|못잤/,
   breakfast: /아침|밥|먹|굶|빵|우유|시리얼|과일|배고|배불/,
@@ -1778,11 +1833,28 @@ function feedbackDriftsFromCurrentAnswer(feedback, payload = {}) {
   });
 }
 
+function feedbackMentionsInputArtifact(feedback) {
+  return /물음표|느낌표|기호|텍스트|문장|입력|글자|화면|표시/.test(String(feedback || ''));
+}
+
+function feedbackMissesCurrentAnswer(feedback, payload = {}) {
+  const answerText = compactText(`${payload.answer || ''} ${payload.summary || ''}`, 500).replace(/\s+/g, '');
+  const feedbackText = compactText(feedback, 220).replace(/\s+/g, '');
+  const anchorGroups = [
+    { answer: /발표|시험|숙제|수업|학원|대회/, feedback: /발표|시험|숙제|수업|학원|대회|긴장|걱정|떨|마음|부담/ },
+    { answer: /긴장|걱정|불안|무서|떨/, feedback: /긴장|걱정|불안|무서|떨|마음|숨|천천히/ },
+    { answer: /피곤|졸려|힘들|지침|못잤|늦게/, feedback: /피곤|졸|힘|잠|몸|천천히|무리/ },
+    { answer: /안먹|못먹|굶|배고/, feedback: /아침|먹|배고|속|몸/ },
+    { answer: /싸웠|다툼|말다툼|놀림|괴롭|맞았|무시/, feedback: /친구|다툼|힘든|부딪|선생님|확인|마음/ },
+    { answer: /기뻐|행복|신나|재밌|설레|기대/, feedback: /기분|마음|밝|신나|기대|반가/ }
+  ];
+  return anchorGroups.some(group => group.answer.test(answerText) && !group.feedback.test(feedbackText));
+}
 function cleanMorningFeedbackText(value, payload = {}) {
   const text = compactText(value, 140).replace(/^["']|["']$/g, '');
-  const speculative = /무슨 .*있었나|아마|혹시 .*일지도|것 같|보네|보인다|보여|짐작|추측/.test(text);
+  const speculative = /무슨 .*있었나|아마|혹시 .*일지도|것 같|보네|보인다|보이는|보여|짐작|추측/.test(text);
   const formal = /군요|습니다|하세요|해\s*봐요|시작해\s*봐요|컨디션 조절|건강 관리|무엇보다 중요|해보는 건 어떨|하길 바라|무리하지|힘내자|걱정되네|간식 시간|평온한|움직여보자|기록|정리|피드백/.test(text);
-  if (!text || text.length > 90 || speculative || formal || feedbackDriftsFromCurrentAnswer(text, payload)) {
+  if (!text || text.length > 90 || speculative || formal || feedbackMentionsInputArtifact(text) || feedbackDriftsFromCurrentAnswer(text, payload) || feedbackMissesCurrentAnswer(text, payload)) {
     return buildMorningFeedbackFallback(payload);
   }
 
@@ -1829,6 +1901,8 @@ function buildMorningFeedbackPrompt(payload) {
 - 현재 피드백의 소재는 반드시 아래 "학생의 방금 답변"이어야 합니다.
 - 이전 답변 요약, 카메라 표정, 질문 라벨은 말투와 위험 신호 참고용일 뿐입니다.
 - 학생의 방금 답변에 없는 잠, 아침밥, 친구 일, 가족 일, 이유, 원인을 새로 말하지 마세요.
+- 학생 답변에 나온 실제 단어 하나(예: 발표, 긴장, 배고픔, 친구)를 피드백에 자연스럽게 반영하세요.
+- 물음표, 텍스트, 문장, 입력, 화면처럼 앱 입력 형식을 보고 말하지 마세요.
 - 학생이 방금 말한 내용과 맞지 않는 구체적 표현을 만들지 말고, 확실하지 않으면 넓게 인정하세요.
 
 학생의 방금 답변:
