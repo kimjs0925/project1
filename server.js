@@ -1853,7 +1853,7 @@ function feedbackMissesCurrentAnswer(feedback, payload = {}) {
 function cleanMorningFeedbackText(value, payload = {}) {
   const text = compactText(value, 140).replace(/^["']|["']$/g, '');
   const speculative = /무슨 .*있었나|아마|혹시 .*일지도|것 같|보네|보인다|보이는|보여|짐작|추측/.test(text);
-  const formal = /군요|습니다|하세요|해\s*봐요|시작해\s*봐요|컨디션 조절|건강 관리|무엇보다 중요|해보는 건|보는 건|어때|말씀드려|분명 잘|해낼 수|하길 바라|무리하지|힘내자|걱정되네|간식 시간|평온한|움직여보자|안아줄게|콩이가|기록|정리|피드백/.test(text);
+  const formal = /군요|습니다|하세요|해\s*봐요|시작해\s*봐요|컨디션 조절|건강 관리|무엇보다 중요|해보는 건|보는 건|어때|말씀드려|분명 잘|잘할 수|해낼 수|[?？]|하길 바라|무리하지|힘내자|걱정되네|간식 시간|평온한|움직여보자|안아줄게|콩이가|기록|정리|피드백/.test(text);
   if (!text || text.length > 90 || speculative || formal || feedbackMentionsInputArtifact(text) || feedbackDriftsFromCurrentAnswer(text, payload) || feedbackMissesCurrentAnswer(text, payload)) {
     return buildMorningFeedbackFallback(payload);
   }
