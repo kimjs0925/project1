@@ -10,7 +10,7 @@
 | 2026-07-08 | 카메라 화면과 원본 음성은 서버에 저장하지 않는다. | 학생 개인정보와 교실 환경 보호가 우선이다. | `student.html`, `server.js` |
 | 2026-07-08 | Gemini/OpenAI 피드백 실패 시 로컬 fallback 문장으로 이어간다. | 수업 중 외부 API 장애로 대화 흐름이 멈추면 안 된다. | `server.js`, `student.html` |
 | 2026-07-08 | Gemini TTS 실패 시 브라우저 기본 음성으로 섞지 않고 텍스트만 유지한다. | 말투가 섞여 학생 경험이 흔들리는 것을 막는다. | `student.html`, `server.js` |
-| 2026-07-08 | 학생 기록은 기본 2일 보존이며, 운영자가 `STUDENT_DATA_RETENTION_DAYS`로 조정한다. | 수업 후 확인 시간은 주되 불필요한 장기 보존을 피한다. | `server.js`, `README.md` |
+| 2026-07-20 | 학생 기록은 기본 30일 보존이며, 운영자가 `STUDENT_DATA_RETENTION_DAYS`로 조정한다. | 날짜별 내보내기와 사후 확인에 충분한 시간을 주되 학기 단위 장기 보존은 별도 설정으로 둔다. | `server.js`, `README.md` |
 | 2026-07-08 | API 키와 env 파일은 브라우저에서 접근할 수 없어야 한다. | 외부 AI 키 유출 방지. | `server.js`, `.gitignore`, `.env.example` |
 
 ## 새 결정 기록 양식
