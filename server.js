@@ -21,7 +21,7 @@ if (process.env.GEMINI_ENV_PATH) {
 }
 const app = express();
 const port = process.env.PORT || 3000;
-const deployVersion = '20260708-feedback-harness';
+const deployVersion = '20260720-date-export';
 const openaiSecretPath = path.resolve(process.cwd(), 'openaiapi.env');
 const dataDir = path.resolve(process.env.DATA_DIR || path.join(process.cwd(), '.data'));
 const statePath = path.join(dataDir, 'conflict-state.json');
@@ -2034,6 +2034,39 @@ app.post('/api/vision-expression', async (req, res) => {
 app.get('/api/morning-records', (req, res) => {
   const store = readMorningStore();
   return res.json({ records: store.records, updatedAt: new Date().toISOString() });
+});
+
+app.get('/api/morning-records/by-date', (req, res) => {
+  const store = readMorningStore();
+  const requestedDate = String(req.query.date || '').trim();
+  const recordsByDate = {};
+
+  Object.entries(store.history || {}).forEach(([studentNo, historyByDate]) => {
+    if (!historyByDate || typeof historyByDate !== 'object') return;
+    Object.entries(historyByDate).forEach(([dateKey, record]) => {
+      const normalized = normalizeMorningRecord({
+        ...record,
+        studentNo,
+        recordDate: record?.recordDate || dateKey
+      });
+      if (!normalized) return;
+      const recordDate = getMorningRecordDateKey(normalized);
+      if (!recordDate) return;
+      if (!recordsByDate[recordDate]) recordsByDate[recordDate] = {};
+      recordsByDate[recordDate][normalized.studentNo] = normalized;
+    });
+  });
+
+  const dates = Object.keys(recordsByDate).sort((a, b) => b.localeCompare(a));
+  const selectedDate = requestedDate || dates[0] || '';
+  const records = selectedDate ? recordsByDate[selectedDate] || {} : {};
+
+  return res.json({
+    date: selectedDate,
+    dates,
+    records,
+    updatedAt: new Date().toISOString()
+  });
 });
 
 app.get('/api/morning-records/:studentNo/history', (req, res) => {

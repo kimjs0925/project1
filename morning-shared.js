@@ -204,6 +204,28 @@
     }
   }
 
+  async function getMorningRecordsByDateFromServer(dateKey = '') {
+    if (!window.fetch) return { date: '', dates: [], records: {}, updatedAt: '' };
+    const query = dateKey ? `?date=${encodeURIComponent(dateKey)}` : '';
+
+    try {
+      const response = await fetchMorningApi(`/api/morning-records/by-date${query}`, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      return {
+        date: typeof data?.date === 'string' ? data.date : '',
+        dates: Array.isArray(data?.dates) ? data.dates : [],
+        records: data?.records && typeof data.records === 'object' && !Array.isArray(data.records)
+          ? data.records
+          : {},
+        updatedAt: typeof data?.updatedAt === 'string' ? data.updatedAt : ''
+      };
+    } catch (error) {
+      console.warn('날짜별 아침대화 기록을 불러오지 못했습니다.', error);
+      return { date: '', dates: [], records: {}, updatedAt: '' };
+    }
+  }
+
   async function saveStudentRecordToServer(record) {
     if (!window.fetch || !record) return;
     try {
@@ -512,6 +534,7 @@
     loadRecordsFromServer,
     getStudentRecordFromServer,
     getStudentRecordHistoryFromServer,
+    getMorningRecordsByDateFromServer,
     getStudentPasscode,
     verifyStudentPasscode,
     createRecord,
