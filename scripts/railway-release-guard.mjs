@@ -9,7 +9,10 @@ function read(relativePath) {
 
 const indexHtml = read('index.html');
 const serverJs = read('server.js');
-const railwayIgnore = read('.railwayignore');
+const railwayIgnorePath = path.join(root, '.railwayignore');
+const railwayIgnore = fs.existsSync(railwayIgnorePath)
+  ? fs.readFileSync(railwayIgnorePath, 'utf8')
+  : '';
 
 const checks = [
   {
@@ -35,7 +38,7 @@ const checks = [
   },
   {
     name: 'Railway upload includes release guard scripts',
-    ok: railwayIgnore.includes('!scripts/') && railwayIgnore.includes('!scripts/**')
+    ok: !railwayIgnore || (railwayIgnore.includes('!scripts/') && railwayIgnore.includes('!scripts/**'))
   }
 ];
 
