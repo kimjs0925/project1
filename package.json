@@ -6,6 +6,8 @@
   "main": "server.js",
   "scripts": {
     "check": "node scripts/harness-check.mjs",
+    "release:guard": "node scripts/railway-release-guard.mjs",
+    "railway:build": "npm run release:guard",
     "start": "node server.js"
   },
   "dependencies": {

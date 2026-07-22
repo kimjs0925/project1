@@ -2,6 +2,7 @@
 
 !package.json
 !package-lock.json
+!railway.json
 !server.js
 !index.html
 !admin.html
@@ -9,6 +10,8 @@
 !morning-index.html
 !morning-shared.js
 !morning-style.css
+!scripts/
+!scripts/**
 !assets/
 !assets/kongi-cute-hoodie.png
 !assets/**
