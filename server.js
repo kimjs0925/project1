@@ -21,7 +21,7 @@ if (process.env.GEMINI_ENV_PATH) {
 }
 const app = express();
 const port = process.env.PORT || 3000;
-const deployVersion = '20260720-date-export';
+const deployVersion = '20260722-ai-smile-restore';
 const openaiSecretPath = path.resolve(process.cwd(), 'openaiapi.env');
 const dataDir = path.resolve(process.env.DATA_DIR || path.join(process.cwd(), '.data'));
 const statePath = path.join(dataDir, 'conflict-state.json');
@@ -605,7 +605,7 @@ app.get(['/morning/admin', '/morning/admin/'], (req, res) => {
 });
 
 app.get(['/conflict', '/conflict/'], (req, res) => {
-  return res.redirect(302, '/');
+  return res.redirect(302, '/student-index.html');
 });
 
 app.get(['/conflict/student', '/conflict/student/'], (req, res) => {
