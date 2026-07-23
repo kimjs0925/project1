@@ -70,6 +70,8 @@
 5. 기록을 재배포 후에도 보존하려면 Railway Volume을 `/data`에 마운트하고 환경변수 `DATA_DIR=/data`를 추가합니다.
 6. 학생 입력 기록은 Railway 서버에 저장되며 기본 30일 동안 다운로드할 수 있습니다. 기간을 바꾸려면 `STUDENT_DATA_RETENTION_DAYS`를 설정합니다.
 7. AI 맞춤 피드백을 쓰려면 Variables에 `GEMINI_API_KEY`, 필요 시 `GEMINI_MODEL`을 추가합니다. OpenAI 분석/대체 피드백을 함께 쓰려면 `OPENAI_API_KEY`, 필요 시 `OPENAI_MODEL`도 추가합니다.
+8. 대한민국 AI-SMILE 최신 배포는 빌드 중 `npm run release:guard`를 통과해야 합니다. `/api/deploy-version`에서 `20260723-ai-smile-lock`이 보이지 않으면 구버전 배포입니다.
+9. 구버전으로 수동 롤백하지 않습니다. 필요할 때도 먼저 `.data` 또는 Railway `/data` Volume 데이터가 보존되는지 확인한 뒤 새 최신 커밋을 배포합니다.
 
 ## 기술 스택
 

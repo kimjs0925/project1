@@ -1,5 +1,6 @@
 *
 
+!.railwayignore
 !package.json
 !package-lock.json
 !railway.json

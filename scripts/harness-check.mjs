@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 const root = process.cwd();
 
@@ -48,6 +49,16 @@ const checks = [
   {
     name: 'decisions log exists',
     run: () => fs.existsSync(path.join(root, 'docs', 'decisions-log.md'))
+  },
+  {
+    name: 'AI-SMILE release guard passes',
+    run: () => {
+      execFileSync(process.execPath, ['scripts/railway-release-guard.mjs'], {
+        cwd: root,
+        stdio: 'pipe'
+      });
+      return true;
+    }
   }
 ];
 

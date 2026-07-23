@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
+const requiredRelease = '20260723-ai-smile-lock';
 
 function read(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), 'utf8');
@@ -15,6 +16,11 @@ const railwayIgnore = fs.existsSync(railwayIgnorePath)
   : '';
 
 const checks = [
+  {
+    name: `student release meta is ${requiredRelease}`,
+    ok: indexHtml.includes(`<meta name="ai-smile-release" content="${requiredRelease}" />`)
+      || indexHtml.includes(`<meta name="ai-smile-release" content="${requiredRelease}">`)
+  },
   {
     name: 'student release title is Daehanminguk AI-SMILE',
     ok: indexHtml.includes('<title>대한민국 AI-SMILE</title>')
@@ -33,12 +39,24 @@ const checks = [
     ok: /app\.get\(\[['"]\/conflict['"], ['"]\/conflict\/['"]\][\s\S]*?res\.redirect\(302, ['"]\/student-index\.html['"]\)/.test(serverJs)
   },
   {
-    name: 'deploy version marks an AI-SMILE release',
-    ok: /const deployVersion = ['"][^'"]*ai-smile[^'"]*['"]/.test(serverJs)
+    name: `deploy version is locked to ${requiredRelease}`,
+    ok: serverJs.includes(`const deployVersion = '${requiredRelease}';`)
+      || serverJs.includes(`const deployVersion = "${requiredRelease}";`)
   },
   {
-    name: 'Railway upload includes release guard scripts',
-    ok: !railwayIgnore || (railwayIgnore.includes('!scripts/') && railwayIgnore.includes('!scripts/**'))
+    name: 'Railway config runs the release guard during build',
+    ok: read('railway.json').includes('"buildCommand": "npm run railway:build"')
+      && read('package.json').includes('"railway:build": "npm run release:guard"')
+      && read('package.json').includes('"release:guard": "node scripts/railway-release-guard.mjs"')
+  },
+  {
+    name: 'Railway upload includes the guard, config, and allowlist',
+    ok: !railwayIgnore || (
+      railwayIgnore.includes('!.railwayignore')
+      && railwayIgnore.includes('!railway.json')
+      && railwayIgnore.includes('!scripts/')
+      && railwayIgnore.includes('!scripts/**')
+    )
   }
 ];
 
