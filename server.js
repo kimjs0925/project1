@@ -155,6 +155,22 @@ app.use((req, res, next) => {
 });
 app.use(express.json({ limit: '5mb' }));
 
+function setNoStoreHeaders(res) {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+}
+
+app.use((req, res, next) => {
+  const acceptsHtml = String(req.headers.accept || '').includes('text/html');
+  const htmlPath = req.path === '/' || req.path.toLowerCase().endsWith('.html');
+  if ((req.method === 'GET' || req.method === 'HEAD') && (acceptsHtml || htmlPath)) {
+    setNoStoreHeaders(res);
+  }
+  next();
+});
+
 const emptyState = {
   padletUrl: '',
   notebooklmUrl: '',
@@ -517,12 +533,12 @@ function mergeAppState(base, incoming) {
 }
 
 app.get('/api/state', (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
+  setNoStoreHeaders(res);
   res.json({ state: readAppState() });
 });
 
 app.get('/api/deploy-version', (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
+  setNoStoreHeaders(res);
   res.json({
     version: deployVersion,
     hasKongiImageAsset: fs.existsSync(path.join(process.cwd(), 'assets', 'kongi-cute-hoodie.png'))
@@ -541,7 +557,7 @@ app.post('/api/state', (req, res) => {
 });
 
 app.get('/api/class-settings', (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
+  setNoStoreHeaders(res);
   const current = readAppState();
   res.json({ settings: getClassSettings(current) });
 });
@@ -579,7 +595,7 @@ app.get('/student-index.html', (req, res) => {
       ? html.replace('</head>', `${injection}\n</head>`)
       : `${injection}\n${html}`;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-store');
+    setNoStoreHeaders(res);
     return res.send(output);
   } catch (error) {
     console.error('학생 배포용 index 생성 오류:', error);
@@ -588,7 +604,7 @@ app.get('/student-index.html', (req, res) => {
 });
 
 function sendProjectHtml(res, fileName) {
-  res.setHeader('Cache-Control', 'no-store');
+  setNoStoreHeaders(res);
   return res.sendFile(path.join(process.cwd(), fileName));
 }
 
@@ -609,6 +625,10 @@ app.get(['/conflict', '/conflict/'], (req, res) => {
 });
 
 app.get(['/conflict/student', '/conflict/student/'], (req, res) => {
+  return res.redirect(302, '/student-index.html');
+});
+
+app.get(['/student-index-copy.html', '/student-index-copy'], (req, res) => {
   return res.redirect(302, '/student-index.html');
 });
 
@@ -2192,7 +2212,13 @@ app.post('/api/conflict-chat', async (req, res) => {
   }
 });
 
-app.use(express.static(path.join(process.cwd(), '')));
+app.use(express.static(path.join(process.cwd(), ''), {
+  setHeaders: (res, filePath) => {
+    if (path.extname(filePath).toLowerCase() === '.html') {
+      setNoStoreHeaders(res);
+    }
+  }
+}));
 
 app.post('/api/analyze', async (req, res) => {
   const { text } = req.body;

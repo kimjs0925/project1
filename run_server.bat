@@ -1,15 +1,23 @@
 @echo off
-set "APP_DIR=%~sdp0"
-set "PYTHON_EXE=C:\Users\user\AppData\Local\Programs\Python\Python312\python.exe"
+chcp 65001 >nul
+cd /d "%~dp0"
 
-echo Starting social-emotional app server.
+set "NODE_EXE=%LOCALAPPDATA%\Programs\nodejs-lts\node-v24.16.0-win-x64\node.exe"
+if not exist "%NODE_EXE%" set "NODE_EXE=node"
+
+echo Starting AI-SMILE Node server.
 echo Keep this window open while students use the app.
 echo.
+echo Student URL:
+echo   http://localhost:3000/student-index.html
+echo.
+echo Morning student URL:
+echo   http://localhost:3000/morning/student
+echo.
+echo Morning admin URL:
+echo   http://localhost:3000/morning/admin
+echo.
 
-if exist "%PYTHON_EXE%" (
-  "%PYTHON_EXE%" "%APP_DIR%python_social_server.py"
-) else (
-  python "%APP_DIR%python_social_server.py"
-)
+"%NODE_EXE%" server.js
 
 pause

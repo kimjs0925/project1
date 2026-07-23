@@ -4,6 +4,7 @@
 !package.json
 !package-lock.json
 !railway.json
+!run_server.bat
 !server.js
 !index.html
 !admin.html

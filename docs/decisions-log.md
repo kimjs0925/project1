@@ -13,6 +13,7 @@
 | 2026-07-20 | 학생 기록은 기본 30일 보존이며, 운영자가 `STUDENT_DATA_RETENTION_DAYS`로 조정한다. | 날짜별 내보내기와 사후 확인에 충분한 시간을 주되 학기 단위 장기 보존은 별도 설정으로 둔다. | `server.js`, `README.md` |
 | 2026-07-08 | API 키와 env 파일은 브라우저에서 접근할 수 없어야 한다. | 외부 AI 키 유출 방지. | `server.js`, `.gitignore`, `.env.example` |
 | 2026-07-23 | 대한민국 AI-SMILE 배포는 `20260723-ai-smile-lock` 최신 릴리스 guard를 통과해야 하며, 사용자 허락 없이 구버전으로 되돌리지 않는다. | Railway 재배포나 수동 롤백 때 오래된 갈등 해결 앱이 다시 노출되는 일을 막고, 데이터는 `/data` Volume 또는 `.data` 저장소에 그대로 보존한다. | `server.js`, `index.html`, `railway.json`, `.railwayignore`, `scripts/railway-release-guard.mjs`, `scripts/harness-check.mjs` |
+| 2026-07-23 | `run_server.bat`은 오래된 Python 보조 서버가 아니라 최신 Node 서버를 실행하고, `student-index-copy.html` 직접 사용은 중단한다. | 오래된 로컬 복사본이나 Python 서버가 최신 Railway/Node 앱과 다른 화면을 보여 구버전으로 돌아간 것처럼 보이는 문제를 막는다. | `run_server.bat`, `server.js`, `README.md`, `scripts/railway-release-guard.mjs` |
 
 ## 새 결정 기록 양식
 

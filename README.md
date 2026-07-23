@@ -22,7 +22,7 @@
    PORT=3000
    ```
 4. `run_server.bat`을 실행합니다.
-   - 현재 실행 배치파일은 Python 보조 서버로 학생 입력 저장과 수업 설정 동기화를 실행합니다.
+   - 현재 실행 배치파일은 최신 Node 서버(`server.js`)를 실행합니다.
    - Windows 방화벽 허용 창이 뜨면 학생 컴퓨터 접속을 위해 허용을 눌러야 합니다.
 5. 브라우저에서 `http://localhost:3000`을 열어 앱을 사용합니다.
 
@@ -34,7 +34,7 @@
    - 현재 이 컴퓨터의 Wi-Fi IP 예: `http://192.168.1.19:3000/student-index.html`
    - 교사용 컴퓨터에서만 확인할 때는 `http://localhost:3000/student-index.html`도 열 수 있지만, 이 주소로 만든 파일은 학생 컴퓨터에서 교사 서버를 찾지 못할 수 있습니다.
    - 학생 컴퓨터에 복사할 파일은 반드시 `localhost` 주소가 아니라 교사 컴퓨터 IP 주소로 연 `student-index.html`에서 만들어야 합니다.
-   - `run_server.bat`을 켜면 `student-index-copy.html`도 자동으로 생성됩니다. 학생에게 파일을 복사해 나눠줄 때는 원본 `index.html`보다 이 파일을 사용하세요.
+   - 예전에 만든 `student-index-copy.html` 파일은 구버전 화면일 수 있으므로 다시 나눠주지 않습니다. 학생은 서버 주소의 `/student-index.html`로 접속하게 합니다.
 4. 학생이 이 파일을 열고 입력한 내용은 교사 컴퓨터 서버의 `/api/state`로 저장됩니다.
 
 ## 연결이 안 될 때 먼저 확인할 것
@@ -72,6 +72,7 @@
 7. AI 맞춤 피드백을 쓰려면 Variables에 `GEMINI_API_KEY`, 필요 시 `GEMINI_MODEL`을 추가합니다. OpenAI 분석/대체 피드백을 함께 쓰려면 `OPENAI_API_KEY`, 필요 시 `OPENAI_MODEL`도 추가합니다.
 8. 대한민국 AI-SMILE 최신 배포는 빌드 중 `npm run release:guard`를 통과해야 합니다. `/api/deploy-version`에서 `20260723-ai-smile-lock`이 보이지 않으면 구버전 배포입니다.
 9. 구버전으로 수동 롤백하지 않습니다. 필요할 때도 먼저 `.data` 또는 Railway `/data` Volume 데이터가 보존되는지 확인한 뒤 새 최신 커밋을 배포합니다.
+10. 브라우저나 프록시가 오래된 HTML을 재사용하지 못하도록 서버는 HTML 응답에 `no-store` 캐시 헤더를 붙입니다.
 
 ## 기술 스택
 

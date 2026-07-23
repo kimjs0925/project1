@@ -31,12 +31,27 @@ const checks = [
       && indexHtml.includes('AI-SMILE 메뉴 설정 저장하기')
   },
   {
+    name: 'local run_server starts the Node AI-SMILE server',
+    ok: read('run_server.bat').includes('server.js')
+      && !read('run_server.bat').includes('python_social_server.py')
+  },
+  {
     name: 'old conflict app title is not present',
     ok: !indexHtml.includes('<title>갈등 해결 활동 앱</title>')
   },
   {
     name: 'conflict route serves the student AI-SMILE page',
     ok: /app\.get\(\[['"]\/conflict['"], ['"]\/conflict\/['"]\][\s\S]*?res\.redirect\(302, ['"]\/student-index\.html['"]\)/.test(serverJs)
+  },
+  {
+    name: 'stale student copy cannot be served directly',
+    ok: /app\.get\(\[['"]\/student-index-copy\.html['"], ['"]\/student-index-copy['"]\][\s\S]*?res\.redirect\(302, ['"]\/student-index\.html['"]\)/.test(serverJs)
+  },
+  {
+    name: 'html responses disable browser caching',
+    ok: serverJs.includes('function setNoStoreHeaders')
+      && serverJs.includes('Surrogate-Control')
+      && serverJs.includes('setHeaders: (res, filePath)')
   },
   {
     name: `deploy version is locked to ${requiredRelease}`,
