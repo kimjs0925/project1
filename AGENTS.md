@@ -58,6 +58,14 @@ npm start
 - `http://localhost:3000/morning/admin`
 - `http://localhost:3000/student-index.html`
 
+## 배포 절차
+
+- 이 프로젝트의 Railway 반영 저장소는 `https://github.com/kimjs0925/project1.git`의 `main` 브랜치다.
+- 사용자가 "반영", "푸쉬", "배포", "Railway에 올려"처럼 말하면 로컬 수정과 검증에서 멈추지 말고 GitHub `main`까지 푸시해 Railway 자동 배포가 시작되게 한다.
+- 현재 작업 폴더의 `.git`이 비어 있거나 깨져 있으면 `git init`, `git remote add origin https://github.com/kimjs0925/project1.git`, `git fetch origin main`, `git reset --mixed origin/main`, `git branch -M main` 순서로 원격 기준만 복구한다. 작업 파일을 덮어쓰는 `git checkout`, `git reset --hard`는 사용하지 않는다.
+- 작업 폴더에는 원격과 무관한 변경/자료 파일이 섞일 수 있으므로 `git add -A`를 쓰지 말고, 이번 작업에 필요한 파일만 명시적으로 stage/commit/push한다.
+- 직접 `npx.cmd @railway/cli up`은 폴더 전체 업로드라 민감 파일 전송 위험이 있다. 사용자가 위험을 알고 명시적으로 승인한 경우가 아니면 GitHub `main` 푸시 방식으로 배포한다.
+
 ## 완료 조건
 
 - 수정한 기능의 성공 경로와 실패 경로를 모두 설명할 수 있어야 한다.
