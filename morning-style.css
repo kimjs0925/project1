@@ -1520,7 +1520,7 @@ tr.student-row:focus-visible {
 }
 
 .student-concept-shell {
-  width: min(1224px, calc(100% - 24px));
+  width: min(1328px, calc(100% - 24px));
   padding: 10px 0 16px;
 }
 
@@ -1631,7 +1631,7 @@ tr.student-row:focus-visible {
 
 .student-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(280px, 24vw, 296px);
+  grid-template-columns: minmax(0, 1fr) clamp(360px, 30vw, 408px);
   align-items: start;
   gap: 14px;
 }
@@ -2658,7 +2658,7 @@ tr.student-row:focus-visible {
 }
 
 .student-page .student-concept-shell {
-  width: min(1224px, calc(100% - 24px));
+  width: min(1328px, calc(100% - 24px));
   padding: 10px 0 16px;
 }
 
