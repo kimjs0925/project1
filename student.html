@@ -4,148 +4,175 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>아침대화 학생창</title>
-  <link rel="stylesheet" href="/morning-style.css?v=20260703-kongi-layout-v4" />
+  <link rel="stylesheet" href="/morning-style.css?v=20260723-layout-balance-v1" />
 </head>
 <body class="student-page">
   <main class="shell student-concept-shell">
     <header class="topbar student-concept-topbar">
-      <div class="brand">
-        <div class="brand-mark" aria-hidden="true"></div>
-        <div>
-          <h1>아침대화</h1>
-          <p class="subtitle">오늘의 기분과 생각을 들려주세요.</p>
-        </div>
+      <a class="student-wordmark" href="/morning" aria-label="마음성장 아침대화 처음으로">
+        <span class="student-wordmark-growth">마음성장</span>
+        <span class="student-wordmark-title">아침대화</span>
+      </a>
+      <img class="student-topbar-buddy kongi-hero-image" id="buddy" data-mood="neutral" src="/assets/kongi-cute-hoodie.png?v=20260722-daehan-topbar-v1" alt="대화 캐릭터 대한이" />
+      <div class="student-topbar-greeting">
+        <strong>안녕하세요! 나는 대한이야! 😉</strong>
+        <span>오늘도 네 마음을 함께 들여다보고<br />행복한 하루를 시작해 보자!</span>
       </div>
       <nav class="nav-actions" aria-label="페이지 이동">
         <span class="pill" id="todayLabel">오늘 날짜</span>
-        <a class="btn secondary" href="/morning">처음으로</a>
       </nav>
     </header>
 
-    <section class="student-hero-panel">
-      <div class="student-hello-blob" aria-hidden="true">
-        <img class="buddy kongi-hero-image" id="buddy" data-mood="neutral" src="/assets/kongi-cute-hoodie.png?v=20260703-kongi-layout-v4" alt="대화 캐릭터 콩이" />
-      </div>
-      <div class="student-hero-copy">
-        <h2>안녕하세요! 좋은 아침이에요</h2>
-        <p>오늘의 기분과 생각을 콩이에게 편하게 말해요.</p>
-      </div>
-    </section>
-
-    <section class="student-profile-card card">
-      <div class="student-profile-main">
-        <div class="student-photo" aria-hidden="true"></div>
-        <div>
-          <div class="student-meta">
-            <span>5학년 6반</span>
-            <span id="selectedStudentLabel">번호와 비밀번호</span>
+    <div class="student-workspace">
+      <div class="student-primary-flow">
+        <section class="student-profile-card card">
+          <div class="student-profile-main">
+            <div class="student-photo" aria-hidden="true"></div>
+            <div>
+              <div class="student-meta">
+                <span>5학년 6반</span>
+                <span id="selectedStudentLabel">번호와 비밀번호</span>
+              </div>
+              <strong class="student-display-name">내 아침대화</strong>
+            </div>
           </div>
-          <strong class="student-display-name">내 아침대화</strong>
-        </div>
-      </div>
-      <div class="student-complete-chip">
-        <span aria-hidden="true">✓</span>
-        <div>
-          <strong>오늘 아침대화를 준비해요</strong>
-          <small>로그인하면 대화를 시작할 수 있어요</small>
-        </div>
-      </div>
-      <div class="student-login-strip" id="studentPickerBody">
-        <form class="login-form" id="studentLoginForm">
-          <div class="login-fields">
-            <label>
-              번호
-              <input class="text-input" id="loginStudentNo" type="number" min="1" max="24" inputmode="numeric" placeholder="예: 7" />
-            </label>
-            <label>
-              비밀번호
-              <input class="text-input" id="loginPasscode" type="password" inputmode="numeric" maxlength="3" placeholder="숫자 3자리" />
-            </label>
+          <div class="student-complete-chip">
+            <span aria-hidden="true">✓</span>
+            <div>
+              <strong>오늘 아침대화를 준비해요</strong>
+              <small>로그인하면 대화를 시작할 수 있어요</small>
+            </div>
           </div>
-          <button class="btn primary" type="submit">들어가기</button>
-        </form>
-        <p class="privacy-note" id="loginMessage">자기 번호와 선생님이 알려준 숫자 3자리 비밀번호를 입력해 주세요.</p>
-      </div>
-    </section>
-
-    <section class="card conversation student-talk-card" aria-label="콩이와 아침 대화">
-      <div class="card-head">
-        <h2 class="card-title" id="conversationTitle">오늘은 어떤 하루가 될 것 같나요?</h2>
-        <span class="pill" id="voiceStatus">로그인 대기</span>
-      </div>
-      <div class="chat-log" id="chatLog" aria-live="polite"></div>
-    </section>
-
-    <section class="student-lower-grid">
-      <section class="card student-voice-card">
-        <div class="voice-card-title">
-          <h2 class="card-title">내 이야기를 들려주세요</h2>
-          <p>버튼을 눌러 말하거나, 글로 입력해도 좋아요.</p>
-        </div>
-        <div class="controls">
-          <div class="live-transcript" id="liveTranscript" aria-live="polite">번호와 비밀번호를 먼저 입력해 주세요.</div>
-          <div class="control-row">
-            <button class="btn secondary" id="repeatQuestion" type="button">질문 다시 듣기</button>
-            <button class="btn primary voice-main-button" id="startVoice" type="button">지금 말하기</button>
-            <button class="btn warning" id="stopVoice" type="button">듣기 멈춤</button>
+          <div class="student-login-strip" id="studentPickerBody">
+            <form class="login-form" id="studentLoginForm">
+              <div class="login-fields">
+                <label>
+                  번호
+                  <input class="text-input" id="loginStudentNo" type="number" min="1" max="24" inputmode="numeric" placeholder="예: 7" />
+                </label>
+                <label>
+                  비밀번호
+                  <input class="text-input" id="loginPasscode" type="password" inputmode="numeric" maxlength="3" placeholder="숫자 3자리" />
+                </label>
+              </div>
+              <button class="btn primary" type="submit">들어가기</button>
+            </form>
+            <p class="privacy-note" id="loginMessage">자기 번호와 선생님이 알려준 숫자 3자리 비밀번호를 입력해 주세요.</p>
           </div>
-          <form class="fallback-form" id="fallbackForm">
-            <input class="text-input" id="fallbackInput" type="text" autocomplete="off" placeholder="마이크가 안 될 때만 짧게 기록해요" />
-            <button class="btn primary" type="submit">기록</button>
-          </form>
-          <div class="control-row">
-            <button class="btn secondary" id="showFallback" type="button">직접 기록 열기</button>
-            <button class="btn secondary" id="downloadMine" type="button">내 기록 다운로드</button>
-            <button class="btn secondary" id="continueQuestion" type="button">다음 질문 확인</button>
-          </div>
-        </div>
-      </section>
+        </section>
 
-      <section class="card student-photo-card">
-        <div class="camera-panel">
+        <section class="card conversation student-talk-card" aria-label="대한이와 아침 대화">
           <div class="card-head">
-            <h2 class="card-title">오늘의 사진</h2>
-            <span class="pill">선택</span>
+            <h2 class="card-title" id="conversationTitle">오늘은 어떤 하루가 될 것 같나요?</h2>
+            <span class="pill" id="voiceStatus">로그인 대기</span>
           </div>
-          <div class="camera-frame" id="cameraFrame">
-            <video id="cameraVideo" playsinline muted></video>
-            <canvas id="cameraOverlay" aria-hidden="true"></canvas>
-            <div class="camera-placeholder" id="cameraPlaceholder">오늘을 보여주는 사진을 찍어보세요.</div>
-          </div>
-          <div class="camera-actions">
-            <button class="btn secondary" id="startCamera" type="button">카메라 시작</button>
-            <button class="btn secondary" id="stopCamera" type="button">카메라 끄기</button>
-          </div>
-          <p class="privacy-note" id="cameraStatus">카메라 화면은 저장하지 않아요.</p>
-        </div>
-      </section>
+          <div class="chat-log" id="chatLog" aria-live="polite"></div>
+        </section>
 
-      <section class="card student-progress-card">
-        <div class="card-head">
-          <h2 class="card-title">오늘의 아침대화 진행 단계</h2>
-          <span class="pill">진행</span>
-        </div>
-        <div class="card-body">
-          <div class="progress-list" id="progressList"></div>
-        </div>
-      </section>
+        <section class="student-lower-grid">
+          <section class="card student-voice-card">
+            <div class="voice-card-title">
+              <h2 class="card-title">내 이야기를 들려주세요</h2>
+              <p>버튼을 눌러 말하거나, 글로 입력해도 좋아요.</p>
+            </div>
+            <div class="controls">
+              <div class="live-transcript" id="liveTranscript" aria-live="polite">번호와 비밀번호를 먼저 입력해 주세요.</div>
+              <div class="control-row">
+                <button class="btn secondary" id="repeatQuestion" type="button">질문 다시 듣기</button>
+                <button class="btn primary voice-main-button" id="startVoice" type="button">지금 말하기</button>
+                <button class="btn warning" id="stopVoice" type="button">듣기 멈춤</button>
+              </div>
+              <form class="fallback-form" id="fallbackForm">
+                <input class="text-input" id="fallbackInput" type="text" autocomplete="off" placeholder="마이크가 안 될 때만 짧게 기록해요" />
+                <button class="btn primary" type="submit">기록</button>
+              </form>
+              <div class="control-row">
+                <button class="btn secondary" id="showFallback" type="button">직접 기록 열기</button>
+                <button class="btn secondary" id="downloadMine" type="button">내 기록 다운로드</button>
+                <button class="btn secondary" id="continueQuestion" type="button">다음 질문 확인</button>
+              </div>
+            </div>
+          </section>
 
-      <section class="card student-memory-panel">
-        <div class="card-head">
-          <h2 class="card-title">매일 꾸준히 이야기하면</h2>
-          <span class="pill">기록</span>
-        </div>
-        <div class="card-body">
-          <div class="memory-card" id="memoryCard">
-            <strong>이전 기록</strong>
-            <p>번호를 선택하면 저장된 대화와 아침기분을 볼 수 있어요.</p>
+          <section class="card student-photo-card">
+            <div class="camera-panel">
+              <div class="card-head">
+                <h2 class="card-title">오늘의 사진</h2>
+                <span class="pill">선택</span>
+              </div>
+              <div class="camera-frame" id="cameraFrame">
+                <video id="cameraVideo" playsinline muted></video>
+                <canvas id="cameraOverlay" aria-hidden="true"></canvas>
+                <div class="camera-placeholder" id="cameraPlaceholder">오늘을 보여주는 사진을 찍어보세요.</div>
+              </div>
+              <div class="camera-actions">
+                <button class="btn secondary" id="startCamera" type="button">카메라 시작</button>
+                <button class="btn secondary" id="stopCamera" type="button">카메라 끄기</button>
+              </div>
+              <p class="privacy-note" id="cameraStatus">카메라 화면은 저장하지 않아요.</p>
+            </div>
+          </section>
+
+          <section class="card student-progress-card">
+            <div class="card-head">
+              <h2 class="card-title">오늘의 아침대화 진행 단계</h2>
+              <span class="pill">진행</span>
+            </div>
+            <div class="card-body">
+              <div class="progress-list" id="progressList"></div>
+            </div>
+          </section>
+
+          <section class="card student-memory-panel">
+            <div class="card-head">
+              <h2 class="card-title">매일 꾸준히 이야기하면</h2>
+              <span class="pill">기록</span>
+            </div>
+            <div class="card-body">
+              <div class="memory-card" id="memoryCard">
+                <strong>이전 기록</strong>
+                <p>번호를 선택하면 저장된 대화와 아침기분을 볼 수 있어요.</p>
+              </div>
+            </div>
+          </section>
+        </section>
+      </div>
+
+      <aside class="self-regulation-card" aria-labelledby="regulationTitle">
+        <div class="self-regulation-head">
+          <span class="regulation-star" aria-hidden="true">⭐</span>
+          <div>
+            <h2 id="regulationTitle">갈등조절 연습</h2>
+            <p>화가 날 때 안전하게 해결해요!</p>
           </div>
         </div>
-      </section>
-    </section>
+        <ol class="regulation-steps" id="regulationSteps">
+          <li class="active" data-step="1"><span>1</span><strong>🔍 상황 알아차리기</strong></li>
+          <li data-step="2"><span>2</span><strong>🏷️ 감정 이름 붙이기</strong></li>
+          <li data-step="3"><span>3</span><strong>🫸 몸의 신호 확인</strong></li>
+          <li data-step="4"><span>4</span><strong>💨 멈추고 숨 고르기</strong></li>
+          <li data-step="5"><span>5</span><strong>💡 다시 생각하기</strong></li>
+          <li data-step="6"><span>6</span><strong>✅ 알맞게 행동하기</strong></li>
+        </ol>
+        <div class="regulation-practice-panel">
+          <strong id="regulationStageTitle">연습 준비</strong>
+          <p id="regulationScenario">버튼을 누르면 갈등 상황 하나를 골라 6단계로 연습해요.</p>
+          <p class="regulation-feedback" id="regulationFeedback">화난 마음은 잘못이 아니에요. 안전한 표현을 연습해요.</p>
+          <form class="regulation-form" id="regulationForm">
+            <input class="text-input" id="regulationInput" type="text" autocomplete="off" placeholder="내 생각을 짧게 적어요" />
+            <button class="btn primary" id="regulationSubmit" type="submit">연습 시작</button>
+          </form>
+          <div class="regulation-actions">
+            <button class="btn secondary" id="regulationNext" type="button">다음 단계</button>
+            <button class="btn secondary" id="regulationRestart" type="button">다른 상황</button>
+          </div>
+        </div>
+        <div class="regulation-note">💗 사실 확인 → 감정 이름 → 몸 신호 → 숨 → 관점 → 행동</div>
+      </aside>
+    </div>
   </main>
 
-  <script src="/morning-shared.js?v=20260630-morning-routes-ai"></script>
+  <script src="/morning-shared.js?v=20260720-admin-date-export-v3"></script>
   <script>
     const {
       STUDENT_COUNT,
@@ -220,12 +247,66 @@
     const continueQuestionButton = document.getElementById('continueQuestion');
     const downloadMineButton = document.getElementById('downloadMine');
     const buddy = document.getElementById('buddy');
+    const KONGI_IMAGE_SRC = '/assets/kongi-cute-hoodie.png?v=20260722-daehan-topbar-v1';
     const cameraVideo = document.getElementById('cameraVideo');
     const cameraOverlay = document.getElementById('cameraOverlay');
     const cameraFrame = document.getElementById('cameraFrame');
     const cameraStatus = document.getElementById('cameraStatus');
     const startCameraButton = document.getElementById('startCamera');
     const stopCameraButton = document.getElementById('stopCamera');
+    const regulationSteps = Array.from(document.querySelectorAll('#regulationSteps li'));
+    const regulationStageTitle = document.getElementById('regulationStageTitle');
+    const regulationScenario = document.getElementById('regulationScenario');
+    const regulationFeedback = document.getElementById('regulationFeedback');
+    const regulationForm = document.getElementById('regulationForm');
+    const regulationInput = document.getElementById('regulationInput');
+    const regulationSubmit = document.getElementById('regulationSubmit');
+    const regulationNext = document.getElementById('regulationNext');
+    const regulationRestart = document.getElementById('regulationRestart');
+    const conflictRegulationGuideUrl = '/감정조절연습정교화.md?v=20260722-conflict-regulation-v1';
+    const fallbackRegulationSituations = [
+      {
+        id: 1,
+        title: '줄을 서 있는데 새치기를 당했을 때',
+        emotions: ['화나다', '짜증나다', '억울하다'],
+        scenario: '급식실에서 오랫동안 차례를 기다리는데 친구가 아무 말 없이 내 앞으로 들어왔어요.',
+        reason: '공정한 차례가 지켜지지 않았고 내 권리를 가볍게 여겼다고 느껴짐',
+        body: '얼굴이 뜨거워짐, 목소리가 커지려 함, 주먹에 힘이 들어감',
+        safety: '친구를 밀거나 욕하지 않기',
+        action: '“나도 계속 기다리고 있었어. 줄 맨 뒤로 가 주면 좋겠어.”라고 차분히 말해요.'
+      },
+      {
+        id: 2,
+        title: '하지 않은 일을 내가 했다고 오해받았을 때',
+        emotions: ['억울하다', '분하다', '화나다'],
+        scenario: '친구가 내가 하지 않은 일을 했다고 말해서 여러 사람이 나를 쳐다봐요.',
+        reason: '사실과 다르게 비난받고 설명할 기회를 얻지 못했다고 느낌',
+        body: '가슴이 답답함, 눈물이 날 것 같음, 말을 빠르게 쏟아내고 싶음',
+        safety: '상대방을 거짓말쟁이라고 몰아붙이거나 보복하지 않기',
+        action: '“제가 본 상황을 차례대로 설명해도 될까요?”라고 말하고 사실을 차분히 설명해요.'
+      },
+      {
+        id: 3,
+        title: '친구가 내 작품을 놀렸을 때',
+        emotions: ['화나다', '밉다', '얄밉다', '속상하다'],
+        scenario: '오랫동안 만든 작품을 발표했는데 친구가 웃으며 이상하다고 말했어요.',
+        reason: '내 노력과 표현을 존중받지 못했고 여러 사람 앞에서 창피를 당했다고 느낌',
+        body: '얼굴이 달아오름, 눈물이 고임, 배가 아프거나 손이 떨림',
+        safety: '상대 작품을 망가뜨리거나 똑같이 놀리지 않기',
+        action: '“내가 열심히 만든 작품이라 그런 말은 속상해. 놀리지 말아 줘.”라고 말해요.'
+      }
+    ];
+    let regulationSituations = [...fallbackRegulationSituations];
+    let regulationSituationsLoaded = false;
+    let regulationSituationsLoading = null;
+    const regulationPrompts = {
+      facts: '상대방을 평가하는 말은 빼고, 실제로 보고 들은 사실만 차례대로 적어 봐.',
+      emotion: '가장 가까운 감정과 화의 세기를 0부터 10까지 숫자로 적어 봐.',
+      body: '화가 날 때 얼굴, 가슴, 손, 목소리, 배에서 어떤 신호가 나타났을까?',
+      breathe: '손에 든 물건을 내려놓고, 코로 4초 들이마시고 입으로 6초 내쉬기를 세 번 해 봐.',
+      rethink: '내가 화난 가장 큰 이유와 상대방에게 있었을 수 있는 사정을 나누어 생각해 봐.',
+      action: '나-전달법으로 차분하고 안전하게 말하거나 도움을 요청하는 문장을 적어 봐.'
+    };
 
     let selectedStudentNo = '';
     let record = null;
@@ -262,18 +343,271 @@
     const visionExpressionCanvas = document.createElement('canvas');
     let microphonePermissionPrepared = false;
     let feedbackPending = false;
+    let emotionCheckState = null;
     let kongiVoice = null;
     let currentSpeechAudio = null;
     let currentSpeechAudioUrl = '';
     let speechRequestToken = 0;
+    let regulationState = {
+      stage: 'idle',
+      step: 1,
+      card: null
+    };
 
     function formatToday() {
-      return new Date().toLocaleDateString('ko-KR', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        weekday: 'long'
+      const today = new Date();
+      const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+      return `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일 (${weekdays[today.getDay()]})`;
+    }
+
+    function normalizePracticeText(value) {
+      return String(value || '').replace(/\s+/g, '').trim();
+    }
+
+    function cleanGuideText(value) {
+      return String(value || '')
+        .replace(/\*\*/g, '')
+        .replace(/^["“]|["”]$/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function readGuideField(block, label) {
+      const pattern = new RegExp(`\\*\\*${label}\\*\\*:\\s*([^\\n]+)`);
+      return cleanGuideText((block.match(pattern) || [])[1]);
+    }
+
+    function readGuideQuote(block, startLabel, endLabel = '') {
+      const endPattern = endLabel
+        ? `\\n- \\*\\*${endLabel}\\*\\*`
+        : '\\n- \\*\\*|\\n####|\\n---';
+      const pattern = new RegExp(`- \\*\\*${startLabel}\\*\\*\\s*\\n\\s*>\\s*[“"]?([\\s\\S]*?)[”"]?(?:${endPattern})`);
+      return cleanGuideText((block.match(pattern) || [])[1]);
+    }
+
+    function parseConflictRegulationGuide(markdown) {
+      return String(markdown || '')
+        .split(/\n### 상황\s+/)
+        .slice(1)
+        .map(block => {
+          const heading = block.match(/^(\d+)\.\s*([^\n]+)/);
+          if (!heading) return null;
+          const emotions = readGuideField(block, '권장 감정어')
+            .split('/')
+            .map(item => item.trim())
+            .filter(Boolean);
+          return {
+            id: Number(heading[1]),
+            title: cleanGuideText(heading[2]),
+            emotions,
+            scenario: readGuideField(block, '상황 제시문'),
+            reason: readGuideField(block, '화를 일으킨 핵심 이유'),
+            body: readGuideField(block, '예상되는 몸의 신호'),
+            safety: readGuideField(block, '안전 규칙'),
+            perspective: readGuideQuote(block, '상대방 관점 정교화 피드백', '학생이 자기 탓만 할 때'),
+            action: readGuideQuote(block, '추천 행동', '나-전달법 문장 틀')
+          };
+        })
+        .filter(card => card?.title && card?.scenario);
+    }
+
+    async function ensureRegulationSituations() {
+      if (regulationSituationsLoaded) return regulationSituations;
+      if (!regulationSituationsLoading) {
+        regulationSituationsLoading = fetch(conflictRegulationGuideUrl, { cache: 'no-store' })
+          .then(response => {
+            if (!response.ok) throw new Error('conflict-regulation-guide-unavailable');
+            return response.text();
+          })
+          .then(markdown => {
+            const parsed = parseConflictRegulationGuide(markdown);
+            if (parsed.length) regulationSituations = parsed;
+            regulationSituationsLoaded = true;
+            return regulationSituations;
+          })
+          .catch(error => {
+            console.warn('갈등조절 연습 문서를 불러오지 못해 기본 상황으로 연습합니다.', error);
+            regulationSituationsLoaded = true;
+            return regulationSituations;
+          });
+      }
+      return regulationSituationsLoading;
+    }
+
+    function getPrimaryPracticeEmotion(card = regulationState.card) {
+      return card?.emotions?.[0] || '화나다';
+    }
+
+    function updateRegulationSteps(step = regulationState.step) {
+      regulationSteps.forEach(item => {
+        const itemStep = Number(item.dataset.step || 0);
+        item.classList.toggle('active', itemStep === step);
+        item.classList.toggle('done', itemStep < step);
       });
+    }
+
+    function setRegulationStage(stage, options = {}) {
+      regulationState.stage = stage;
+      regulationState.step = options.step || regulationState.step;
+      updateRegulationSteps(regulationState.step);
+      regulationInput.value = '';
+      regulationInput.hidden = false;
+      regulationSubmit.hidden = false;
+      regulationNext.hidden = true;
+      regulationRestart.hidden = false;
+
+      if (stage === 'idle') {
+        regulationState.card = null;
+        regulationStageTitle.textContent = '연습 준비';
+        regulationScenario.textContent = '버튼을 누르면 갈등 상황 하나를 골라 6단계로 연습해요.';
+        regulationFeedback.textContent = '화난 마음은 잘못이 아니에요. 안전한 표현을 연습해요.';
+        regulationInput.hidden = true;
+        regulationSubmit.textContent = regulationSituationsLoaded ? '연습 시작' : '문서 읽고 시작';
+        regulationRestart.hidden = true;
+        updateRegulationSteps(1);
+        return;
+      }
+
+      if (stage === 'facts') {
+        const card = regulationState.card;
+        regulationStageTitle.textContent = '1단계: 상황 알아차리기';
+        regulationScenario.textContent = `${card.title}\n${card.scenario}`;
+        regulationFeedback.textContent = regulationPrompts.facts;
+        regulationInput.placeholder = '누가 무엇을 했는지, 내가 본 일을 적어요';
+        regulationSubmit.textContent = '사실 정리';
+        return;
+      }
+
+      if (stage === 'emotion') {
+        const card = regulationState.card;
+        regulationStageTitle.textContent = '2단계: 감정 이름 붙이기';
+        regulationFeedback.textContent = `${regulationPrompts.emotion} 권장 감정어: ${card.emotions.join(', ')}`;
+        regulationInput.placeholder = '예: 억울하다 8, 화나다 6';
+        regulationSubmit.textContent = '감정 확인';
+        return;
+      }
+
+      if (stage === 'body') {
+        regulationStageTitle.textContent = '3단계: 몸의 신호 확인하기';
+        regulationFeedback.textContent = regulationPrompts.body;
+        regulationInput.placeholder = '예: 얼굴이 뜨거워지고 손에 힘이 들어가요';
+        regulationSubmit.textContent = '몸 신호 적기';
+        return;
+      }
+
+      if (stage === 'breathe') {
+        regulationStageTitle.textContent = '4단계: 멈추고 숨 고르기';
+        regulationFeedback.textContent = regulationPrompts.breathe;
+        regulationInput.hidden = true;
+        regulationSubmit.hidden = true;
+        regulationNext.hidden = false;
+        regulationNext.textContent = '숨 골랐어요';
+        return;
+      }
+
+      if (stage === 'rethink') {
+        regulationStageTitle.textContent = '5단계: 다시 생각하기';
+        regulationFeedback.textContent = regulationPrompts.rethink;
+        regulationInput.placeholder = '내가 지키고 싶은 것과 상대의 사정을 나누어 적어요';
+        regulationSubmit.textContent = '관점 생각';
+        return;
+      }
+
+      if (stage === 'action') {
+        regulationStageTitle.textContent = '6단계: 알맞게 행동하기';
+        regulationFeedback.textContent = regulationPrompts.action;
+        regulationInput.placeholder = '네가 ... 했을 때, 나는 ... 마음이 들었어. 앞으로는 ... 해 줬으면 좋겠어.';
+        regulationSubmit.textContent = '행동 정하기';
+        return;
+      }
+
+      if (stage === 'done') {
+        regulationStageTitle.textContent = '연습 완료';
+        regulationFeedback.textContent = '오늘은 화를 참기만 하거나 폭발시키는 대신, 화가 알려 주는 중요한 마음을 안전하게 표현하는 연습을 했어.';
+        regulationInput.hidden = true;
+        regulationSubmit.hidden = true;
+        regulationNext.hidden = true;
+        regulationRestart.textContent = '다른 상황 또 연습하기';
+        regulationScenario.textContent = `연습한 상황: ${regulationState.card.title}`;
+      }
+    }
+
+    async function startRegulationPractice() {
+      regulationSubmit.disabled = true;
+      regulationSubmit.textContent = '문서 읽는 중';
+      const situations = await ensureRegulationSituations();
+      regulationSubmit.disabled = false;
+      const nextCard = situations[Math.floor(Math.random() * situations.length)];
+      regulationState.card = nextCard;
+      regulationRestart.textContent = '다른 상황';
+      setRegulationStage('facts', { step: 1 });
+      regulationInput.focus();
+    }
+
+    async function handleRegulationSubmit(event) {
+      event.preventDefault();
+      if (regulationState.stage === 'idle' || !regulationState.card) {
+        await startRegulationPractice();
+        return;
+      }
+
+      const value = regulationInput.value.trim();
+      if (!value) {
+        regulationFeedback.textContent = '짧게라도 적어 보면 연습이 더 쉬워져요.';
+        regulationInput.focus();
+        return;
+      }
+
+      if (regulationState.stage === 'facts') {
+        setRegulationStage('emotion', { step: 2 });
+        regulationFeedback.textContent = `좋아. 먼저 확인할 수 있는 사실은 "${regulationState.card.scenario}"야. 해석과 사실을 나누면 화가 조금 더 다루기 쉬워져.\n\n다음: ${regulationPrompts.emotion} 권장 감정어: ${regulationState.card.emotions.join(', ')}`;
+        regulationInput.focus();
+        return;
+      }
+
+      if (regulationState.stage === 'emotion') {
+        const compact = normalizePracticeText(value);
+        const matched = regulationState.card.emotions.some(emotion => compact.includes(normalizePracticeText(emotion)));
+        const answerEmotion = getPrimaryPracticeEmotion();
+        const intensity = Number((value.match(/\d+/) || [])[0] || 0);
+        let feedback = matched
+          ? `맞아. 이 상황에서는 ${regulationState.card.emotions.join(', ')} 같은 감정이 들 수 있어. 감정은 잘못이 아니고 표현 방법을 선택하는 것이 중요해.`
+          : `그 감정도 함께 들 수 있어. 이 상황에는 ${regulationState.card.emotions.join(', ')}도 숨어 있을 수 있단다.`;
+        if (intensity >= 8) feedback += ' 지금은 화가 큰 상태라 먼저 몸을 진정시키는 게 필요해.';
+        setRegulationStage('body', { step: 3 });
+        regulationFeedback.textContent = `${feedback}\n\n다음: ${regulationPrompts.body}`;
+        regulationInput.focus();
+        return;
+      }
+
+      if (regulationState.stage === 'body') {
+        setRegulationStage('breathe', { step: 4 });
+        regulationFeedback.textContent = `이 상황에서는 ${regulationState.card.body || '숨이 빨라지고 손에 힘이 들어감'} 같은 신호가 나타날 수 있어. 몸의 신호는 잠깐 멈추라는 경고등이야.\n\n다음: ${regulationPrompts.breathe}`;
+        return;
+      }
+
+      if (regulationState.stage === 'rethink') {
+        const perspective = regulationState.card.perspective || '정확한 이유는 직접 확인해야 하지만 여러 가능성을 생각하면 더 차분하게 해결할 수 있어.';
+        setRegulationStage('action', { step: 6 });
+        regulationFeedback.textContent = `네가 화난 핵심에는 "${regulationState.card.reason}" 마음이 있어. ${perspective}\n\n다음: ${regulationPrompts.action}`;
+        regulationInput.focus();
+        return;
+      }
+
+      if (regulationState.stage === 'action') {
+        const unsafe = /(때리|욕|던지|부수|복수|보복|망가|죽|다치|패)/.test(normalizePracticeText(value));
+        const actionFeedback = unsafe
+          ? `그만큼 화가 컸다는 뜻이구나. 하지만 ${regulationState.card.safety || '공격 행동은 하지 않기'}가 안전 규칙이야. ${regulationState.card.action || '내 마음과 부탁을 차분한 말로 바꾸어 보자.'}`
+          : `좋은 선택이야. ${regulationState.card.action || '네 마음과 부탁을 차분하게 말하고, 필요하면 어른에게 도움을 요청하면 돼.'}`;
+        setRegulationStage('done', { step: 7 });
+        regulationFeedback.textContent = `${actionFeedback}\n\n오늘은 화를 참기만 하거나 폭발시키는 대신, 화가 알려 주는 중요한 마음을 안전하게 표현하는 연습을 했어.`;
+      }
+    }
+
+    function continueRegulationPractice() {
+      if (regulationState.stage === 'breathe') {
+        setRegulationStage('rethink', { step: 5 });
+      }
     }
 
     function isTodayRecord(candidate) {
@@ -297,6 +631,7 @@
       pendingSpeech = '';
       interimSpeech = '';
       feedbackPending = false;
+      emotionCheckState = null;
       botSpeechActive = false;
       const activeRecognition = recognition;
       recognitionStartToken += 1;
@@ -343,7 +678,7 @@
 
     async function syncSelectedStudentRecordFromServer() {
       if (!selectedStudentNo) return;
-      if (feedbackPending || recognitionActive || recognitionStarting) return;
+      if (feedbackPending || emotionCheckState || recognitionActive || recognitionStarting) return;
 
       const records = await loadRecordsFromServer();
       const saved = records ? records[selectedStudentNo] || null : getStudentRecord(selectedStudentNo);
@@ -355,6 +690,7 @@
       record = saved;
       currentQuestionIndex = findNextQuestionIndex();
       feedbackPending = false;
+      emotionCheckState = null;
       expressionGreetingDone = Boolean(record.expressionGreetingDone);
       expressionFeedbackCount = Number(record.expressionFeedbackCount || (record.expressionGreetingDone ? 1 : 0));
       lastExpressionMood = record.expression?.mood || '';
@@ -629,7 +965,7 @@
       const transcript = record?.transcript || [];
 
       if (!selectedStudentNo) {
-        addVisualMessage('bot', '안녕, 나는 마음 친구 콩이야. 먼저 자기 번호와 숫자 3자리 비밀번호를 입력해줘.');
+        addVisualMessage('bot', '안녕, 나는 마음 친구 대한이야. 먼저 자기 번호와 숫자 3자리 비밀번호를 입력해줘.');
         return;
       }
 
@@ -648,8 +984,12 @@
       message.className = `message ${role === 'student' ? 'user' : role}`;
 
       if (role !== 'user' && role !== 'student') {
-        const avatar = document.createElement('div');
-        avatar.className = 'avatar';
+        const avatar = document.createElement('img');
+        avatar.className = 'avatar kongi-chat-avatar';
+        avatar.src = KONGI_IMAGE_SRC;
+        avatar.alt = '';
+        avatar.decoding = 'async';
+        avatar.loading = 'lazy';
         avatar.setAttribute('aria-hidden', 'true');
         message.appendChild(avatar);
       }
@@ -1276,12 +1616,13 @@
 
     function updateControls() {
       const hasStudent = Boolean(selectedStudentNo);
-      const complete = hasStudent && isComplete(record);
+      const emotionActive = isEmotionCheckActive();
+      const complete = hasStudent && isComplete(record) && !emotionActive;
       const readyForNewQuestion = hasStudent && record && !(record.transcript || []).length;
       repeatQuestionButton.disabled = !hasStudent || !record || complete || feedbackPending;
-      startVoiceButton.disabled = !hasStudent || !record || complete || recognitionActive || recognitionStarting || readyForNewQuestion || feedbackPending;
+      startVoiceButton.disabled = !hasStudent || !record || complete || recognitionActive || recognitionStarting || readyForNewQuestion || feedbackPending || !canReceiveStudentAnswer();
       stopVoiceButton.disabled = !recognitionActive && !recognitionStarting;
-      continueQuestionButton.disabled = !hasStudent || !record || complete || feedbackPending;
+      continueQuestionButton.disabled = !hasStudent || !record || complete || feedbackPending || emotionActive;
       downloadMineButton.disabled = !hasStudent || !record;
 
       if (!hasStudent) {
@@ -1292,7 +1633,10 @@
         liveTranscript.textContent = '다음 질문 확인을 누르면 오늘 대화를 새로 시작해요.';
       } else if (feedbackPending) {
         voiceStatus.textContent = '대답 살피는 중';
-        liveTranscript.textContent = '콩이가 방금 대답에 맞는 말을 고르고 있어요.';
+        liveTranscript.textContent = '대한이가 방금 대답에 맞는 말을 고르고 있어요.';
+      } else if (emotionActive) {
+        voiceStatus.textContent = '감정 확인 중';
+        liveTranscript.textContent = getEmotionCheckEmptyPrompt();
       } else if (complete) {
         voiceStatus.textContent = '대화 완료';
         liveTranscript.textContent = '오늘 아침대화가 저장됐어요.';
@@ -1310,7 +1654,7 @@
     function scheduleAutoListen() {
       window.clearTimeout(autoListenTimer);
       autoListenTimer = 0;
-      if (!selectedStudentNo || !record || currentQuestionIndex >= questions.length) return;
+      if (!canReceiveStudentAnswer()) return;
       if (!SpeechRecognition) {
         fallbackForm.classList.add('show');
         updateControls();
@@ -1325,7 +1669,7 @@
           scheduleAutoListen();
           return;
         }
-        if (!recognitionActive && selectedStudentNo && currentQuestionIndex < questions.length) {
+        if (!recognitionActive && canReceiveStudentAnswer()) {
           startVoice({ auto: true });
         }
       }, 1500);
@@ -1345,113 +1689,62 @@
       }
     }
 
-    function compactFeedbackSeed(value) {
-      const text = String(value || '');
-      let hash = 0;
-      for (let index = 0; index < text.length; index += 1) {
-        hash = ((hash << 5) - hash + text.charCodeAt(index)) | 0;
-      }
-      return Math.abs(hash);
-    }
-
-    function pickFeedback(candidates, key, rawText, summary) {
-      const options = candidates.filter(Boolean);
-      if (!options.length) return '네 이야기 잘 들었어. 고마워.';
-      const seed = compactFeedbackSeed(`${key}|${rawText}|${summary}`);
-      return options[seed % options.length];
-    }
-
     function buildFeedback(key, rawText, summary) {
-      const text = String(`${summary || ''} ${rawText || ''}`).replace(/\s+/g, '');
-      const subject = (text.match(/발표|시험|숙제|수업|학원|대회|친구|가족|동생|엄마|아빠/) || [''])[0];
+      const text = String(rawText || '').replace(/\s+/g, '');
 
       if (key === 'sleep') {
-        if (/꿈|악몽/.test(text)) {
-          return pickFeedback(['꿈 때문에 잠이 편하지 않았구나.', '꿈이 마음에 남았구나. 천천히 시작하자.'], key, rawText, summary);
+        if (/부족|피곤|못잤|잠이안|졸려|늦게|자주깼|설쳤/.test(summary + text)) {
+          return '잠이 좀 불편했구나. 천천히 시작해도 괜찮아.';
         }
-        if (/부족|피곤|못잤|잠이안|졸려|늦게|자주깼|설쳤/.test(text)) {
-          return pickFeedback(['잠이 부족했구나. 오늘은 천천히 가도 괜찮아.', '피곤함이 남아 있구나. 몸을 살피며 시작하자.', '밤이 편하지 않았구나. 무리하지 않아도 돼.'], key, rawText, summary);
+        if (/양호|잘잤|푹잤|충분|좋았/.test(summary + text)) {
+          return '푹 잤구나. 오늘 아침이 가볍게 느껴지겠다.';
         }
-        if (/양호|잘잤|푹잤|충분|좋았/.test(text)) {
-          return pickFeedback(['푹 잤구나. 아침이 조금 가볍겠다.', '잘 쉬었다니 다행이야. 좋은 시작이네.', '잠이 괜찮았다니 몸도 덜 무겁겠다.'], key, rawText, summary);
-        }
-        return pickFeedback(['잠 이야기도 들었어. 몸 느낌을 같이 볼게.', '오늘 몸 상태를 알려줘서 고마워.'], key, rawText, summary);
+        return '잠 이야기도 들었어. 오늘 몸 느낌을 살펴볼게.';
       }
 
       if (key === 'breakfast') {
-        if (/먹지않음|안먹|못먹|굶/.test(text)) {
-          return pickFeedback(['아침을 못 먹었구나. 배고프면 선생님께 말해줘.', '속이 비어 있겠구나. 힘들면 꼭 알려줘.', '아침을 건너뛰었구나. 몸 느낌을 살펴볼게.'], key, rawText, summary);
+        if (/먹지않음|안먹|못먹|굶/.test(summary + text)) {
+          return '아침을 못 먹었구나. 배고프면 선생님께 살짝 말해줘.';
         }
-        if (/조금|반만|우유|과자만|빵만/.test(text)) {
-          return pickFeedback(['조금이라도 먹었구나. 몸이 어떤지 같이 보자.', '많지는 않아도 챙겼구나. 배고프면 말해줘.', '조금 먹은 아침이었구나. 무리하지 말자.'], key, rawText, summary);
+        if (/먹음|조금먹음|먹었|밥|빵|시리얼|과일|우유/.test(summary + text)) {
+          return '아침을 챙겼구나. 조금 든든하겠다.';
         }
-        if (/먹음|먹었|밥|빵|시리얼|과일|우유/.test(text)) {
-          return pickFeedback(['아침을 챙겼구나. 조금 든든하겠다.', '먹고 왔다니 다행이야. 힘이 나면 좋겠다.', '몸에 에너지를 조금 채웠구나.'], key, rawText, summary);
-        }
-        return pickFeedback(['아침 이야기도 들었어. 몸 느낌도 같이 볼게.', '먹는 이야기 알려줘서 고마워.'], key, rawText, summary);
+        return '아침 이야기도 들었어. 몸 느낌도 같이 볼게.';
       }
 
       if (key === 'special') {
-        if (/없음|없어|없었|별일없|괜찮/.test(text)) {
-          return pickFeedback(['특별한 일이 없었다면 편하게 시작하자.', '큰일 없이 왔다니 다행이야.', '별일 없었다고 말해줘도 충분해.'], key, rawText, summary);
+        if (/없음|없어|없었|별일없|괜찮/.test(summary + text)) {
+          return '특별한 일이 없었다면 편하게 시작해도 괜찮아.';
         }
-        if (/걱정|불안|긴장|무서|떨/.test(text)) {
-          const options = subject
-            ? [`${subject} 때문에 긴장됐구나. 천천히 말해도 돼.`, `${subject} 일이 마음에 남았구나. 같이 살펴볼게.`]
-            : ['긴장되는 일이 있었구나. 천천히 말해도 돼.', '마음에 걸리는 일이 있었구나. 말해줘서 고마워.'];
-          return pickFeedback(options, key, rawText, summary);
+        if (/혼났|혼남|혼냈|나만혼|싸웠|싸워|다퉜|다퉈|다툼|억울|속상|서운/.test(summary + text)) {
+          return '그 일 때문에 속상하고 억울했을 수 있겠다. 말해줘서 고마워.';
         }
-        if (/기대|신나|좋|재밌|설레/.test(text)) {
-          const options = subject
-            ? [`${subject} 생각에 설렜구나. 그 느낌 좋다.`, `${subject} 일이 기대되는구나. 반가운 마음이네.`]
-            : ['기대되는 일이 있구나. 그 마음이 반갑다.', '좋은 일이 마음에 있구나. 들려줘서 고마워.'];
-          return pickFeedback(options, key, rawText, summary);
-        }
-        return pickFeedback(subject
-          ? [`${subject} 일이 마음에 남았구나. 말해줘서 고마워.`, `${subject} 이야기를 들었어. 마음에 잘 담아둘게.`]
-          : ['그 일이 마음에 남아 있었구나. 말해줘서 고마워.', '오늘 알아두면 좋을 일을 알려줘서 고마워.'], key, rawText, summary);
+        return '그 일이 마음에 남아 있었구나. 말해줘서 고마워.';
       }
 
       if (key === 'mood') {
-        if (/밝음|좋|기뻐|행복|신나|재밌|설레|기대/.test(text)) {
-          return pickFeedback(['좋은 기분이라니 반가워. 그 느낌이 이어지면 좋겠다.', '마음이 밝은 쪽이구나. 그 기운 좋다.', '신나는 마음이 있구나. 들으니 나도 반가워.'], key, rawText, summary);
+        if (/안좋|기분안좋|나쁘|별로|피곤|속상|슬퍼|우울|답답|화남|짜증|걱정|불안|무서|긴장|힘들|혼났|혼남|혼냈|나만혼|싸웠|싸워|다퉜|다퉈|다툼/.test(summary + text)) {
+          return '마음이 편하지만은 않았구나. 천천히 가도 괜찮아.';
         }
-        if (/피곤|졸려|힘들|지침/.test(text)) {
-          return pickFeedback(['몸과 마음이 무겁구나. 천천히 가도 괜찮아.', '피곤함이 남아 있구나. 오늘은 무리하지 말자.', '힘이 덜 나는 아침이구나. 살살 시작하자.'], key, rawText, summary);
+        if (/밝음|좋|기뻐|행복|신나|재밌|설레/.test(summary + text)) {
+          return '좋은 기분이라니 반가워. 그 느낌이 이어지면 좋겠다.';
         }
-        if (/걱정|불안|무서|긴장|떨|발표|시험/.test(text)) {
-          const options = subject
-            ? [`${subject} 때문에 마음이 떨렸구나. 천천히 해도 괜찮아.`, `${subject} 생각에 긴장됐구나. 숨 한번 고르자.`]
-            : ['걱정되는 마음이 있구나. 천천히 말해도 괜찮아.', '긴장되는 마음이구나. 숨 한번 고르자.', '불안한 마음을 말해줘서 고마워.'];
-          return pickFeedback(options, key, rawText, summary);
+        if (/보통|괜찮|그냥|모르겠/.test(summary + text)) {
+          return '보통이라고 말해줘도 충분해. 그런 날도 있지.';
         }
-        if (/속상|슬퍼|우울|답답|화남|짜증|서운/.test(text)) {
-          return pickFeedback(['마음이 편하지만은 않았구나. 천천히 가도 괜찮아.', '속상한 마음이 있었구나. 말해줘서 고마워.', '답답한 마음을 들었어. 혼자 두지 않을게.'], key, rawText, summary);
-        }
-        if (/보통|괜찮|그냥|모르겠/.test(text)) {
-          return pickFeedback(['보통이라고 말해줘도 충분해. 그런 날도 있지.', '아직 잘 모르겠는 마음도 괜찮아.', '그냥 그런 아침이구나. 천천히 시작하자.'], key, rawText, summary);
-        }
-        return pickFeedback(['지금 마음을 들었어. 그 마음 그대로 괜찮아.', '오늘 마음을 말해줘서 고마워.'], key, rawText, summary);
+        return '지금 마음을 들었어. 그 마음 그대로 괜찮아.';
       }
 
       if (key === 'conflict') {
-        if (/없음|없어|없었|별일없|괜찮/.test(text)) {
-          return pickFeedback(['친구 일로 남은 게 없다니 다행이야.', '친구 일은 괜찮았구나. 편하게 시작하자.', '마음에 걸린 친구 일이 없었구나.'], key, rawText, summary);
+        if (/없음|없어|없었|별일없|괜찮/.test(summary + text)) {
+          return '친구 일로 마음에 남은 게 없다니 편하겠다.';
         }
-        if (/미안|사과|화해/.test(text)) {
-          return pickFeedback(['미안한 마음이 남았구나. 천천히 풀어가도 돼.', '화해하고 싶은 마음이 있구나. 잘 들었어.'], key, rawText, summary);
-        }
-        if (/싸웠|다툼|말다툼|화났|짜증/.test(text)) {
-          return pickFeedback(['친구와 부딪힌 일이 있었구나. 마음을 잘 들었어.', '다툼이 마음에 남았구나. 천천히 살펴보자.'], key, rawText, summary);
-        }
-        if (/놀림|괴롭|때렸|맞았|무시|따돌/.test(text)) {
-          return pickFeedback(['힘든 일이 있었구나. 선생님이 볼 수 있게 남겨둘게.', '혼자 참기 어려운 일이었구나. 꼭 확인할게.'], key, rawText, summary);
-        }
-        return pickFeedback(['친구 일이 마음에 남았구나. 말해줘서 고마워.', '친구와 있었던 일을 들었어. 천천히 같이 볼게.'], key, rawText, summary);
+        return '친구 일이 마음에 남았구나. 말해줘서 고마워.';
       }
 
-      return pickFeedback(['네 이야기 잘 들었어. 고마워.', '말해줘서 고마워. 마음에 잘 담아둘게.'], key, rawText, summary);
+      return '네 이야기 잘 들었어. 고마워.';
     }
+
     function getPreviousAnswersForFeedback() {
       if (!record?.answers) return [];
       return questions
@@ -1471,6 +1764,37 @@
     function getExpressionFeedbackContext() {
       if (!record?.expression) return '';
       return `${record.expression.label} ${record.expression.confidence}%`;
+    }
+
+    function compactEmotionText(value) {
+      return String(value || '').replace(/\s+/g, '');
+    }
+
+    function hasNegativeEmotionCue(value) {
+      const text = compactEmotionText(value);
+      return /(안좋|기분안좋|나쁘|별로|최악|싫|속상|서운|슬프|우울|답답|화나|화가|짜증|억울|불공평|걱정|불안|무서|두렵|두려|긴장|힘들|피곤|혼날까|혼났|혼남|혼냈|나만혼|싸웠|싸워|다퉜|다퉈|다툼|갈등|울었|눈물)/.test(text);
+    }
+
+    function hasFamilyConflictCue(value) {
+      const text = compactEmotionText(value);
+      return /(동생|형|누나|언니|오빠|엄마|아빠|부모|가족).*(싸웠|싸워|다퉜|다퉈|다툼|혼났|혼남|혼냈|나만혼)|(싸웠|싸워|다퉜|다퉈|다툼|혼났|혼남|혼냈|나만혼).*(동생|형|누나|언니|오빠|엄마|아빠|부모|가족)/.test(text);
+    }
+
+    function hasPositiveEmotionFeedbackCue(value) {
+      const text = compactEmotionText(value);
+      return /(반가운|기대|마음이밝|밝은쪽|밝아보|좋은기분|기쁜|기쁘|행복|신나|즐거|설레|뿌듯|힘나는기분)/.test(text);
+    }
+
+    function feedbackConflictsWithAnswerEmotion(feedback, rawText, summary) {
+      const answerText = `${summary || ''} ${rawText || ''}`;
+      if (!hasNegativeEmotionCue(answerText) && !hasFamilyConflictCue(answerText)) return false;
+      return hasPositiveEmotionFeedbackCue(feedback);
+    }
+
+    function sanitizePersonalizedFeedback(feedback, fallback, rawText, summary) {
+      const text = typeof feedback === 'string' ? feedback.trim() : '';
+      if (!text || feedbackConflictsWithAnswerEmotion(text, rawText, summary)) return fallback;
+      return text;
     }
 
     async function requestPersonalizedFeedback(question, rawText, summary) {
@@ -1498,15 +1822,254 @@
         if (!response.ok) throw new Error('personalized-feedback-unavailable');
         const data = await response.json();
         const personalized = data?.feedback?.feedback || data?.feedback;
-        return typeof personalized === 'string' && personalized.trim()
-          ? personalized.trim()
-          : fallback;
+        return sanitizePersonalizedFeedback(personalized, fallback, rawText, summary);
       } catch (error) {
         console.warn('맞춤 피드백을 사용할 수 없어 기본 피드백으로 이어갑니다.', error);
         return fallback;
       } finally {
         window.clearTimeout(timeout);
       }
+    }
+
+    function canStartEmotionSupport(question, rawText, summary) {
+      if (!question || !['special', 'mood', 'conflict'].includes(question.key)) return false;
+      const text = String(`${summary || ''} ${rawText || ''}`).replace(/\s+/g, '');
+      return text && !/(없어|없었|없음|없어요|아니야|아니요|괜찮아|괜찮아요|별일없|특별한일없|보통|그냥|모르겠)/.test(text);
+    }
+
+    function emotionMethod(kind, questionKey) {
+      if (kind === 'anger') {
+        return questionKey === 'conflict'
+          ? '배웠던 나비포옹법으로 잠깐 마음을 가라앉혀 보자. 마음이 조금 편해질거야. 양팔을 X자로 가슴에 올리고 양쪽 어깨를 천천히 번갈아 토닥여 봐. 그다음 "네가 ~했을 때 나는 ~하게 느꼈어"처럼 나-전달법으로 차분히 말해봐.'
+          : '배웠던 나비포옹법으로 잠깐 마음을 가라앉혀 보자. 마음이 조금 편해질거야. 양팔을 X자로 가슴에 올리고 양쪽 어깨를 천천히 번갈아 토닥여 봐.';
+      }
+      if (kind === 'fear') {
+        return '가슴이 뛰거나 몸이 굳는지 살피고, 코로 숨을 깊게 마신 뒤 천천히 내쉬어 봐. 그리고 걱정되는 일을 선생님께 차분히 말해도 괜찮아.';
+      }
+      if (kind === 'sadness') {
+        return '그 감정 이름을 조용히 말해보고, 혼자 해결하기 어렵다면 선생님이나 믿을 만한 사람에게 무엇이 힘든지 말해봐.';
+      }
+      return '몸에서 느껴지는 신호를 먼저 살피고, 이 기분이 어떤 일과 이어졌는지 생각해 봐.';
+    }
+
+    function makeEmotionSupport(kind, primaryEmotion, primaryPhrase, similarEmotion, similarPhrase, questionKey, autoConfirmed = false) {
+      return {
+        shouldAsk: true,
+        autoConfirmed,
+        group: kind,
+        primaryEmotion,
+        primaryPhrase,
+        similarEmotion,
+        similarPhrase,
+        method: emotionMethod(kind, questionKey),
+        source: 'client-local'
+      };
+    }
+
+    function buildLocalEmotionSupport(question, rawText, summary) {
+      if (!canStartEmotionSupport(question, rawText, summary)) return null;
+      const text = compactEmotionText(`${summary || ''} ${rawText || ''}`);
+
+      if (/(두렵|두려|무서|혼날까)/.test(text)) {
+        const explicit = /(두렵|두려|무서)/.test(compactEmotionText(rawText));
+        return makeEmotionSupport('fear', '두렵다', '두려운', '걱정되다', '걱정되는', question.key, explicit);
+      }
+      if (/(걱정|불안|긴장|떨려)/.test(text)) {
+        const explicit = /(걱정|불안|긴장|떨려)/.test(compactEmotionText(rawText));
+        return makeEmotionSupport('fear', '걱정되다', '걱정되는', '긴장되다', '긴장되는', question.key, explicit);
+      }
+      if (/(나만혼|억울|불공평)/.test(text)) {
+        const explicit = /(억울|불공평)/.test(compactEmotionText(rawText));
+        return makeEmotionSupport('anger', '억울하다', '억울한', '원망스럽다', '원망스러운', question.key, explicit);
+      }
+      if (/(화나|화가|짜증|싸웠|싸워|다퉜|다퉈|다툼|혼났|혼남|혼냈)/.test(text)) {
+        const explicit = /(화나|화가|짜증)/.test(compactEmotionText(rawText));
+        return makeEmotionSupport('anger', '화나다', '화난', '억울하다', '억울한', question.key, explicit);
+      }
+      if (/(안좋|기분안좋|나쁘|별로|속상|서운|슬프|우울|눈물|울었)/.test(text)) {
+        const explicit = /(속상|서운|슬프|우울|눈물|울었)/.test(compactEmotionText(rawText));
+        return makeEmotionSupport('sadness', '속상하다', '속상한', '슬프다', '슬픈', question.key, explicit);
+      }
+      if (/친구|동생|형|누나|언니|오빠|엄마|아빠|부모|가족|갈등|놀림|괴롭|말다툼|욕|무시/.test(text)) {
+        return makeEmotionSupport('sadness', '속상하다', '속상한', '화나다', '화난', question.key);
+      }
+
+      return null;
+    }
+
+    async function requestEmotionSupportSuggestion(question, rawText, summary) {
+      const localSupport = buildLocalEmotionSupport(question, rawText, summary);
+      if (!canStartEmotionSupport(question, rawText, summary)) return null;
+      if (localSupport?.autoConfirmed) return localSupport;
+      if (!window.fetch) return localSupport;
+
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 5000);
+
+      try {
+        const response = await fetch('/api/morning-emotion-support', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            questionKey: question.key,
+            questionLabel: question.label,
+            answer: rawText,
+            summary
+          }),
+          signal: controller.signal
+        });
+
+        if (!response.ok) throw new Error('emotion-support-unavailable');
+        const data = await response.json();
+        return data?.support?.shouldAsk ? data.support : localSupport;
+      } catch (error) {
+        console.warn('감정 확인 도움말을 사용할 수 없어 기본 피드백으로 이어갑니다.', error);
+        return localSupport;
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    }
+
+    function isEmotionCheckActive() {
+      return Boolean(emotionCheckState);
+    }
+
+    function canReceiveStudentAnswer() {
+      return Boolean(selectedStudentNo && record && (currentQuestionIndex < questions.length || isEmotionCheckActive()));
+    }
+
+    function getEmotionCheckEmptyPrompt() {
+      if (!emotionCheckState) return '';
+      if (emotionCheckState.stage === 'student-label') return '떠오르는 감정 단어를 편하게 말해줘.';
+      return '맞으면 맞아, 아니면 아니야라고 말해줘.';
+    }
+
+    function normalizeEmotionCheckReply(text) {
+      return String(text || '').replace(/\s+/g, '').toLowerCase();
+    }
+
+    function isYesReply(text) {
+      const value = normalizeEmotionCheckReply(text);
+      return /^(응|어|네|예|맞아|맞아요|그래|그런것같아|그런거같아|yes|ㅇㅇ)$/.test(value)
+        || (/맞|그래|그런것|그런거/.test(value) && !isNoReply(value));
+    }
+
+    function isNoReply(text) {
+      const value = normalizeEmotionCheckReply(text);
+      return /아니|아냐|아닌|아니요|틀렸|별로|몰라|모르겠/.test(value);
+    }
+
+    function buildEmotionCheckQuestion(support, similar = false) {
+      const phrase = similar ? support.similarPhrase : support.primaryPhrase;
+      const fallback = similar ? support.similarEmotion : support.primaryEmotion;
+      return similar
+        ? `그럼 혹시 ${phrase || fallback} 기분에 더 가까워?`
+        : `너 혹시 ${phrase || fallback} 기분 맞아?`;
+    }
+
+    function continueAfterEmotionCheck(message) {
+      emotionCheckState = null;
+      if (currentQuestionIndex < questions.length) {
+        askCurrentQuestion({ beforeText: message });
+      } else {
+        speak(message, () => finishConversation());
+      }
+      updateControls();
+    }
+
+    function giveEmotionRegulationMethod(emotionPhrase) {
+      if (!emotionCheckState) return;
+      const phrase = emotionPhrase || emotionCheckState.support.primaryPhrase || emotionCheckState.support.primaryEmotion || '그런';
+      const method = emotionCheckState.support.method || '숨을 천천히 쉬고, 어떤 감정인지 이름을 붙여 봐.';
+      const message = `그렇구나. ${phrase} 기분이 들 때는 이렇게 해봐. ${method}`;
+      addTranscript('bot', message, `${emotionCheckState.questionKey}:emotion-method`);
+      continueAfterEmotionCheck(message);
+    }
+
+    function giveDirectEmotionRegulationMethod(support, beforeText = '') {
+      const phrase = support?.primaryPhrase || support?.primaryEmotion || '그런';
+      const method = support?.method || '숨을 천천히 쉬고, 어떤 감정인지 이름을 붙여 봐.';
+      const methodText = `그 ${phrase} 마음을 대한이가 들었어. 그럴 때는 이렇게 해봐. ${method}`;
+      const message = [beforeText, methodText].filter(Boolean).join('\n\n');
+      addTranscript('bot', message, `${support?.questionKey || 'emotion'}:emotion-method`);
+      if (currentQuestionIndex < questions.length) {
+        askCurrentQuestion({ beforeText: message });
+      } else {
+        speak(message, () => finishConversation());
+      }
+      updateControls();
+    }
+
+    function startEmotionCheck(question, support, beforeText = '') {
+      emotionCheckState = {
+        questionKey: question.key,
+        questionLabel: question.label,
+        stage: 'primary',
+        support
+      };
+
+      const questionText = buildEmotionCheckQuestion(support);
+      const message = [beforeText, questionText].filter(Boolean).join('\n\n');
+      addTranscript('bot', message, `${question.key}:emotion-check`);
+      speak(message, scheduleAutoListen);
+      updateControls();
+    }
+
+    function repeatCurrentPrompt() {
+      if (emotionCheckState) {
+        const support = emotionCheckState.support || {};
+        const text = emotionCheckState.stage === 'student-label'
+          ? '그럼 어떤 감정인 것 같아?'
+          : buildEmotionCheckQuestion(support, emotionCheckState.stage === 'similar');
+        speak(text, scheduleAutoListen);
+        liveTranscript.textContent = getEmotionCheckEmptyPrompt();
+        return;
+      }
+
+      askCurrentQuestion({ speakOnly: true });
+    }
+
+    function handleEmotionCheckAnswer(text) {
+      if (!emotionCheckState) return false;
+
+      const value = String(text || '').trim();
+      if (!value) {
+        liveTranscript.textContent = getEmotionCheckEmptyPrompt();
+        return true;
+      }
+
+      addTranscript('student', value, `${emotionCheckState.questionKey}:emotion-check`);
+
+      if (isYesReply(value)) {
+        const phrase = emotionCheckState.stage === 'similar'
+          ? emotionCheckState.support.similarPhrase
+          : emotionCheckState.support.primaryPhrase;
+        giveEmotionRegulationMethod(phrase);
+        return true;
+      }
+
+      if (emotionCheckState.stage === 'primary' && isNoReply(value)) {
+        emotionCheckState.stage = 'similar';
+        const questionText = buildEmotionCheckQuestion(emotionCheckState.support, true);
+        addTranscript('bot', questionText, `${emotionCheckState.questionKey}:emotion-check`);
+        speak(questionText, scheduleAutoListen);
+        updateControls();
+        return true;
+      }
+
+      if (emotionCheckState.stage === 'similar' && isNoReply(value)) {
+        emotionCheckState.stage = 'student-label';
+        const questionText = '그럼 어떤 감정인 것 같아?';
+        addTranscript('bot', questionText, `${emotionCheckState.questionKey}:emotion-check`);
+        speak(questionText, scheduleAutoListen);
+        updateControls();
+        return true;
+      }
+
+      const message = `그 감정도 소중해. 말해줘서 고마워.`;
+      addTranscript('bot', message, `${emotionCheckState.questionKey}:emotion-check`);
+      continueAfterEmotionCheck(message);
+      return true;
     }
 
     function askCurrentQuestion(options = {}) {
@@ -1536,6 +2099,7 @@
       todayLabel.textContent = formatToday();
       record = await getTodayStudentRecord(studentNo) || createRecord(studentNo);
       currentQuestionIndex = findNextQuestionIndex();
+      emotionCheckState = null;
       expressionGreetingDone = Boolean(record.expressionGreetingDone);
       expressionFeedbackCount = Number(record.expressionFeedbackCount || (record.expressionGreetingDone ? 1 : 0));
       lastExpressionMood = record.expression?.mood || '';
@@ -1560,6 +2124,7 @@
     }
 
     async function handleAnswer(text) {
+      if (handleEmotionCheckAnswer(text)) return;
       if (!record || currentQuestionIndex >= questions.length) return;
       const value = String(text || '').trim();
       if (!value) {
@@ -1596,7 +2161,10 @@
           }
           return;
         }
-        const feedback = await requestPersonalizedFeedback(question, value, summary);
+        const [feedback, emotionSupport] = await Promise.all([
+          requestPersonalizedFeedback(question, value, summary),
+          requestEmotionSupportSuggestion(question, value, summary)
+        ]);
         if (!record || selectedStudentNo !== feedbackStudentNo || currentQuestionIndex !== feedbackQuestionIndex) {
           if (selectedStudentNo === feedbackStudentNo) {
             feedbackPending = false;
@@ -1605,10 +2173,16 @@
           return;
         }
         feedbackPending = false;
-        addTranscript('bot', feedback, question.key);
-        if (currentQuestionIndex < questions.length) {
+
+        if (emotionSupport?.autoConfirmed) {
+          giveDirectEmotionRegulationMethod({ ...emotionSupport, questionKey: question.key }, feedback);
+        } else if (emotionSupport) {
+          startEmotionCheck(question, emotionSupport, feedback);
+        } else if (currentQuestionIndex < questions.length) {
+          addTranscript('bot', feedback, question.key);
           askCurrentQuestion({ beforeText: feedback });
         } else {
+          addTranscript('bot', feedback, question.key);
           speak(feedback, () => finishConversation());
         }
         updateControls();
@@ -1741,14 +2315,16 @@
           return;
         }
         if (heard && isLikelyBotEcho(heard)) {
-          liveTranscript.textContent = '콩이 목소리가 마이크에 들어와서 다시 들을게요. 학생이 직접 대답해 주세요.';
+          liveTranscript.textContent = '대한이 목소리가 마이크에 들어와서 다시 들을게요. 학생이 직접 대답해 주세요.';
           scheduleAutoListen();
           return;
         }
         if (heard) handleAnswer(heard);
-        else liveTranscript.textContent = record && currentQuestionIndex < questions.length
-          ? questions[currentQuestionIndex].emptyPrompt
-          : '오늘 아침대화가 저장됐어요.';
+        else liveTranscript.textContent = isEmotionCheckActive()
+          ? getEmotionCheckEmptyPrompt()
+          : record && currentQuestionIndex < questions.length
+            ? questions[currentQuestionIndex].emptyPrompt
+            : '오늘 아침대화가 저장됐어요.';
       };
 
       return next;
@@ -1756,11 +2332,11 @@
 
     async function startVoice(options = {}) {
       const autoStart = options?.auto === true;
-      if (!selectedStudentNo || !record || currentQuestionIndex >= questions.length) return;
+      if (!canReceiveStudentAnswer()) return;
       if (recognitionActive || recognitionStarting) return;
       const speaking = 'speechSynthesis' in window && (window.speechSynthesis.speaking || window.speechSynthesis.pending);
       if (botSpeechActive || speaking) {
-        liveTranscript.textContent = '콩이가 말하는 중이에요. 말이 끝나면 학생 대답을 들을게요.';
+        liveTranscript.textContent = '대한이가 말하는 중이에요. 말이 끝나면 학생 대답을 들을게요.';
         scheduleAutoListen();
         return;
       }
@@ -1833,7 +2409,7 @@
         '',
         '[대화 전문]',
         ...(record.transcript || []).map(item => {
-          const speaker = item.role === 'student' ? '학생' : '콩이';
+          const speaker = item.role === 'student' ? '학생' : '대한이';
           const label = window.MorningApp.labels[item.key] || '대화';
           return `- ${formatDate(item.time)} / ${speaker} / ${label}: ${item.text}`;
         })
@@ -1841,7 +2417,7 @@
       downloadText(`아침대화_${record.studentNo}번.txt`, lines.join('\n'));
     }
 
-    repeatQuestionButton.addEventListener('click', () => askCurrentQuestion({ speakOnly: true }));
+    repeatQuestionButton.addEventListener('click', repeatCurrentPrompt);
     startVoiceButton.addEventListener('click', startVoice);
     stopVoiceButton.addEventListener('click', stopVoice);
     startCameraButton.addEventListener('click', () => startCamera({ withMicrophone: true }));
@@ -1876,6 +2452,10 @@
       fallbackInput.value = '';
       handleAnswer(value);
     });
+    regulationForm.addEventListener('submit', handleRegulationSubmit);
+    regulationNext.addEventListener('click', continueRegulationPractice);
+    regulationRestart.addEventListener('click', startRegulationPractice);
+    setRegulationStage('idle', { step: 1 });
 
     try {
       pruneLocalRecordsForToday();
