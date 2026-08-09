@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
-const requiredRelease = '20260723-ai-smile-lock';
+const requiredRelease = '20260809-ai-smile-menu-nest';
 
 function read(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), 'utf8');

@@ -21,7 +21,8 @@ if (process.env.GEMINI_ENV_PATH) {
 }
 const app = express();
 const port = process.env.PORT || 3000;
-const deployVersion = '20260723-ai-smile-lock';
+const deployVersion = '20260809-ai-smile-menu-nest';
+const deployCommit = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.RAILWAY_GIT_COMMIT || '';
 const openaiSecretPath = path.resolve(process.cwd(), 'openaiapi.env');
 const dataDir = path.resolve(process.env.DATA_DIR || path.join(process.cwd(), '.data'));
 const statePath = path.join(dataDir, 'conflict-state.json');
@@ -541,6 +542,7 @@ app.get('/api/deploy-version', (req, res) => {
   setNoStoreHeaders(res);
   res.json({
     version: deployVersion,
+    commit: deployCommit,
     hasKongiImageAsset: fs.existsSync(path.join(process.cwd(), 'assets', 'kongi-cute-hoodie.png'))
   });
 });
