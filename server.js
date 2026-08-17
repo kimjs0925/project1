@@ -154,7 +154,7 @@ app.use((req, res, next) => {
   }
   next();
 });
-app.use(express.json({ limit: '5mb' }));
+app.use(express.json({ limit: '35mb' }));
 
 function setNoStoreHeaders(res) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -471,13 +471,23 @@ function normalizeInstructionalMaterial(value) {
   };
 }
 
+function normalizeInstructionalMaterials(value) {
+  const materials = Array.isArray(value)
+    ? value
+    : (value && typeof value === 'object' ? [value] : []);
+  return materials
+    .map(normalizeInstructionalMaterial)
+    .filter(Boolean)
+    .slice(0, 7);
+}
+
 function normalizeAppState(value) {
   const source = value && typeof value === 'object' ? value : {};
   return {
     padletUrl: typeof source.padletUrl === 'string' ? source.padletUrl : '',
     notebooklmUrl: typeof source.notebooklmUrl === 'string' ? source.notebooklmUrl : '',
     notebooklmContext: typeof source.notebooklmContext === 'string' ? source.notebooklmContext : '',
-    instructionalMaterial: normalizeInstructionalMaterial(source.instructionalMaterial),
+    instructionalMaterial: normalizeInstructionalMaterials(source.instructionalMaterial),
     connectionLink: typeof source.connectionLink === 'string' ? source.connectionLink : '',
     connectionActivity: typeof source.connectionActivity === 'string' ? source.connectionActivity : '',
     internalizationLink: typeof source.internalizationLink === 'string' ? source.internalizationLink : '',

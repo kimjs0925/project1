@@ -593,6 +593,96 @@
       color: #11613a;
       font-weight: 700;
     }
+    .instruction-material-viewer {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-card);
+      background: var(--color-surface);
+      overflow: hidden;
+      box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
+    }
+    .instruction-material-nav {
+      display: grid;
+      grid-template-columns: 52px 1fr 52px;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      border-bottom: 1px solid var(--color-border);
+      background: var(--color-surface-soft);
+    }
+    .material-arrow-btn {
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      font-size: 22px;
+    }
+    .instruction-material-meta {
+      min-width: 0;
+      text-align: center;
+    }
+    .instruction-material-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--color-text);
+      overflow-wrap: anywhere;
+    }
+    .instruction-material-count {
+      margin-top: 2px;
+      font-size: 13px;
+      color: var(--color-muted);
+    }
+    .instruction-material-stage {
+      min-height: 460px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: #f8fafc;
+    }
+    .instruction-material-stage img,
+    .instruction-material-stage iframe {
+      width: 100%;
+      max-width: 100%;
+      border: 0;
+      border-radius: 6px;
+      background: #fff;
+    }
+    .instruction-material-stage img {
+      height: auto;
+      max-height: 70vh;
+      object-fit: contain;
+    }
+    .instruction-material-stage iframe {
+      height: 68vh;
+      min-height: 420px;
+    }
+    .instruction-material-text {
+      width: 100%;
+      min-height: 360px;
+      margin: 0;
+      padding: 16px;
+      border-radius: 6px;
+      background: #fff;
+      color: var(--color-text);
+      white-space: pre-wrap;
+      overflow: auto;
+      line-height: 1.8;
+      font-family: inherit;
+      font-size: 15px;
+    }
+    .instruction-material-empty {
+      width: 100%;
+      padding: 36px 18px;
+      text-align: center;
+      color: var(--color-muted);
+      line-height: 1.7;
+      background: #fff;
+      border-radius: 6px;
+    }
+    .instruction-material-actions {
+      padding: 12px;
+      border-top: 1px solid var(--color-border);
+      background: var(--color-surface);
+    }
     .activity-view {
       white-space: pre-wrap;
       min-height: 92px;
@@ -1056,6 +1146,24 @@
         width: 100%;
       }
 
+      .instruction-material-nav {
+        grid-template-columns: 44px 1fr 44px;
+        gap: 8px;
+        padding: 10px;
+      }
+      .material-arrow-btn {
+        width: 40px;
+        height: 40px;
+      }
+      .instruction-material-stage {
+        min-height: 320px;
+        padding: 10px;
+      }
+      .instruction-material-stage iframe {
+        height: 62vh;
+        min-height: 320px;
+      }
+
       .student-result {
         align-items: flex-start;
         flex-direction: column;
@@ -1268,6 +1376,27 @@
       <div id="emotion-list"></div>
     </div>
 
+    <div id="student-instruction-material" class="sub-page">
+      <button class="back-btn" onclick="showSub('student-instruction-material','student-home')">
+        ← 돌아가기
+      </button>
+      <p class="page-title">명시적 교수에 의한 배움다지기</p>
+      <div class="instruction-material-viewer">
+        <div class="instruction-material-nav">
+          <button id="instruction-material-prev" class="btn material-arrow-btn" onclick="showPreviousInstructionalMaterial()" aria-label="이전 자료">←</button>
+          <div class="instruction-material-meta">
+            <div id="instruction-material-title" class="instruction-material-title"></div>
+            <div id="instruction-material-count" class="instruction-material-count"></div>
+          </div>
+          <button id="instruction-material-next" class="btn material-arrow-btn" onclick="showNextInstructionalMaterial()" aria-label="다음 자료">→</button>
+        </div>
+        <div id="instruction-material-viewer-body" class="instruction-material-stage"></div>
+        <div class="instruction-material-actions">
+          <button id="instruction-material-open" class="btn btn-primary btn-full" onclick="openCurrentInstructionalMaterialInNewTab()">자료 열기</button>
+        </div>
+      </div>
+    </div>
+
     <div id="student-connection" class="sub-page">
       <button class="back-btn" onclick="showSub('student-connection','student-home')">
         ← 돌아가기
@@ -1327,7 +1456,7 @@
       </div>
       <div class="field-group">
         <label class="field-label">명시적 교수에 의한 배움다지기 교수자료</label>
-        <input type="file" id="instruction-material-file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.doc,.docx,.ppt,.pptx">
+        <input type="file" id="instruction-material-file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.doc,.docx,.ppt,.pptx" multiple>
         <div id="instruction-material-status" class="material-status">저장된 교수자료가 없습니다.</div>
         <button class="btn btn-sm" style="margin-top: 8px;" onclick="clearInstructionalMaterial()">교수자료 비우기</button>
       </div>
@@ -1471,6 +1600,7 @@
   let currentAdminSituationId = '';
   let pendingStudentAction = '';
   let conflictChatHistory = [];
+  let currentInstructionMaterialIndex = 0;
 
   // 워드클라우드 필터 상태
   let wordCloudFilter = 'all'; // 'all', 'situation', 'character'
@@ -1484,6 +1614,7 @@
     : '';
   const teacherServerUrl = configuredTeacherServerUrl || 'http://192.168.1.19:3000';
   const deploymentDefaults = window.CONFLICT_APP_DEFAULT_SETTINGS || {};
+  const INSTRUCTION_MATERIAL_MAX_ITEMS = 7;
   const INSTRUCTION_MATERIAL_MAX_BYTES = 3 * 1024 * 1024;
   const EMOTION_WORD_GROUPS = [
     ['기쁨', '기쁘', '기뻐', '좋아', '흐뭇', '만족'],
@@ -1536,6 +1667,20 @@
     };
   }
 
+  function normalizeInstructionalMaterials(materials) {
+    const list = Array.isArray(materials)
+      ? materials
+      : (materials && typeof materials === 'object' ? [materials] : []);
+    return list
+      .map(normalizeInstructionalMaterial)
+      .filter(Boolean)
+      .slice(0, INSTRUCTION_MATERIAL_MAX_ITEMS);
+  }
+
+  function getInstructionalMaterials() {
+    return normalizeInstructionalMaterials(state.instructionalMaterial);
+  }
+
   function applyDeploymentDefaults() {
     if (!deploymentDefaults || typeof deploymentDefaults !== 'object') return;
     if (!state.padletUrl && typeof deploymentDefaults.padletUrl === 'string') {
@@ -1547,8 +1692,8 @@
     if (!state.notebooklmContext && typeof deploymentDefaults.notebooklmContext === 'string') {
       state.notebooklmContext = deploymentDefaults.notebooklmContext;
     }
-    if (!state.instructionalMaterial) {
-      state.instructionalMaterial = normalizeInstructionalMaterial(deploymentDefaults.instructionalMaterial);
+    if (!getInstructionalMaterials().length) {
+      state.instructionalMaterial = normalizeInstructionalMaterials(deploymentDefaults.instructionalMaterial);
     }
     if (!state.connectionLink && typeof deploymentDefaults.connectionLink === 'string') {
       state.connectionLink = deploymentDefaults.connectionLink;
@@ -1704,8 +1849,8 @@
       ? (replaceSettings ? remote.notebooklmContext : remote.notebooklmContext || state.notebooklmContext || '')
       : state.notebooklmContext || '';
     state.instructionalMaterial = remote.instructionalMaterial && typeof remote.instructionalMaterial === 'object'
-      ? normalizeInstructionalMaterial(remote.instructionalMaterial)
-      : (replaceSettings ? null : state.instructionalMaterial || null);
+      ? normalizeInstructionalMaterials(remote.instructionalMaterial)
+      : (replaceSettings ? [] : getInstructionalMaterials());
     state.connectionLink = typeof remote.connectionLink === 'string'
       ? (replaceSettings ? remote.connectionLink : remote.connectionLink || state.connectionLink || '')
       : state.connectionLink || '';
@@ -1739,6 +1884,9 @@
     generateWordCloud();
     renderStudentResults();
     renderConnectionView();
+    if (document.getElementById('student-instruction-material')?.classList.contains('active')) {
+      renderInstructionalMaterialViewer();
+    }
   }
 
   function applyRemoteStudents(remote) {
@@ -1923,7 +2071,7 @@
       state.padletUrl = parsed.padletUrl || '';
       state.notebooklmUrl = parsed.notebooklmUrl || '';
       state.notebooklmContext = parsed.notebooklmContext || '';
-      state.instructionalMaterial = normalizeInstructionalMaterial(parsed.instructionalMaterial);
+      state.instructionalMaterial = normalizeInstructionalMaterials(parsed.instructionalMaterial);
       state.connectionLink = typeof parsed.connectionLink === 'string' ? parsed.connectionLink : '';
       state.connectionActivity = typeof parsed.connectionActivity === 'string' ? parsed.connectionActivity : '';
       state.internalizationLink = typeof parsed.internalizationLink === 'string' ? parsed.internalizationLink : '';
@@ -1967,13 +2115,13 @@
     document.getElementById('connection-link').value = state.connectionLink || '';
     document.getElementById('connection-activity').value = state.connectionActivity || '';
     document.getElementById('internalization-link').value = state.internalizationLink || '';
-    const material = normalizeInstructionalMaterial(state.instructionalMaterial);
+    const materials = getInstructionalMaterials();
     const materialStatus = document.getElementById('instruction-material-status');
     if (materialStatus) {
-      materialStatus.textContent = material
-        ? `저장된 교수자료: ${material.name}`
+      materialStatus.textContent = materials.length
+        ? `저장된 교수자료 ${materials.length}장: ${materials.map(item => item.name).join(', ')}`
         : '저장된 교수자료가 없습니다.';
-      materialStatus.classList.toggle('ready', Boolean(material));
+      materialStatus.classList.toggle('ready', Boolean(materials.length));
     }
     renderSituationOptions('admin-situation-select', true);
     const adminSituationSelect = document.getElementById('admin-situation-select');
@@ -2757,12 +2905,115 @@ ${studentEntries}`;
     linkButton.disabled = !state.connectionLink;
   }
 
-  function openInstructionalMaterial() {
-    const material = normalizeInstructionalMaterial(state.instructionalMaterial);
-    if (!material) {
+  async function openInstructionalMaterial() {
+    const synced = await syncClassSettingsFromServer();
+    if (!synced) {
+      alert('선생님 컴퓨터 서버에 연결되지 않아 최신 교수자료를 가져오지 못했습니다.');
+    }
+    const materials = getInstructionalMaterials();
+    if (!materials.length) {
       alert('관리자 페이지에서 교수자료를 먼저 저장해 주세요.');
       return;
     }
+    currentInstructionMaterialIndex = 0;
+    showSub('student-home', 'student-instruction-material');
+    renderInstructionalMaterialViewer();
+  }
+
+  function getCurrentInstructionalMaterial() {
+    const materials = getInstructionalMaterials();
+    if (!materials.length) return null;
+    if (currentInstructionMaterialIndex < 0) currentInstructionMaterialIndex = 0;
+    if (currentInstructionMaterialIndex >= materials.length) {
+      currentInstructionMaterialIndex = materials.length - 1;
+    }
+    return materials[currentInstructionMaterialIndex] || null;
+  }
+
+  function isPdfMaterial(material) {
+    return material?.type === 'application/pdf' || /\.pdf$/i.test(material?.name || '');
+  }
+
+  function isTextMaterial(material) {
+    return /^text\//i.test(material?.type || '') || /\.txt$/i.test(material?.name || '');
+  }
+
+  function decodeDataUrlText(dataUrl) {
+    const commaIndex = String(dataUrl || '').indexOf(',');
+    if (commaIndex < 0) return '';
+    const meta = dataUrl.slice(0, commaIndex);
+    const payload = dataUrl.slice(commaIndex + 1);
+    if (/;base64/i.test(meta)) {
+      const binary = atob(payload);
+      const bytes = Uint8Array.from(binary, char => char.charCodeAt(0));
+      return new TextDecoder('utf-8').decode(bytes);
+    }
+    return decodeURIComponent(payload.replace(/\+/g, '%20'));
+  }
+
+  function renderInstructionalMaterialViewer() {
+    const materials = getInstructionalMaterials();
+    const material = getCurrentInstructionalMaterial();
+    const titleEl = document.getElementById('instruction-material-title');
+    const countEl = document.getElementById('instruction-material-count');
+    const bodyEl = document.getElementById('instruction-material-viewer-body');
+    const prevBtn = document.getElementById('instruction-material-prev');
+    const nextBtn = document.getElementById('instruction-material-next');
+    const openBtn = document.getElementById('instruction-material-open');
+    if (!titleEl || !countEl || !bodyEl || !prevBtn || !nextBtn || !openBtn) return;
+
+    prevBtn.disabled = materials.length <= 1 || currentInstructionMaterialIndex <= 0;
+    nextBtn.disabled = materials.length <= 1 || currentInstructionMaterialIndex >= materials.length - 1;
+    openBtn.disabled = !material;
+
+    if (!material) {
+      titleEl.textContent = '교수자료 없음';
+      countEl.textContent = '';
+      bodyEl.innerHTML = '<div class="instruction-material-empty">저장된 교수자료가 없습니다.</div>';
+      return;
+    }
+
+    titleEl.textContent = material.name;
+    countEl.textContent = `${currentInstructionMaterialIndex + 1} / ${materials.length}`;
+
+    if (/^image\//i.test(material.type || '')) {
+      bodyEl.innerHTML = `<img src="${material.dataUrl}" alt="${escapeHtml(material.name)}">`;
+      return;
+    }
+    if (isPdfMaterial(material)) {
+      bodyEl.innerHTML = `<iframe src="${material.dataUrl}" title="${escapeHtml(material.name)}"></iframe>`;
+      return;
+    }
+    if (isTextMaterial(material)) {
+      try {
+        bodyEl.innerHTML = `<pre class="instruction-material-text">${escapeHtml(decodeDataUrlText(material.dataUrl))}</pre>`;
+      } catch (error) {
+        bodyEl.innerHTML = '<div class="instruction-material-empty">텍스트 자료를 표시하지 못했습니다. 자료 열기 버튼으로 확인해 주세요.</div>';
+      }
+      return;
+    }
+
+    bodyEl.innerHTML = `
+      <div class="instruction-material-empty">
+        이 파일 형식은 브라우저 안에서 바로 미리보기 어렵습니다.<br>
+        아래 버튼으로 자료를 열어 확인해 주세요.
+      </div>
+    `;
+  }
+
+  function showPreviousInstructionalMaterial() {
+    currentInstructionMaterialIndex -= 1;
+    renderInstructionalMaterialViewer();
+  }
+
+  function showNextInstructionalMaterial() {
+    currentInstructionMaterialIndex += 1;
+    renderInstructionalMaterialViewer();
+  }
+
+  function openCurrentInstructionalMaterialInNewTab() {
+    const material = getCurrentInstructionalMaterial();
+    if (!material) return;
     const link = document.createElement('a');
     link.href = material.dataUrl;
     link.target = '_blank';
@@ -2860,28 +3111,34 @@ ${studentEntries}`;
 
   async function readClassMenuSettingsFromAdmin() {
     const fileInput = document.getElementById('instruction-material-file');
-    const file = fileInput?.files?.[0];
-    let material = normalizeInstructionalMaterial(state.instructionalMaterial);
+    const files = Array.from(fileInput?.files || []);
+    let materials = getInstructionalMaterials();
 
-    if (file) {
-      if (file.size > INSTRUCTION_MATERIAL_MAX_BYTES) {
-        alert('교수자료는 3MB 이하 파일만 저장할 수 있습니다.');
+    if (files.length) {
+      if (files.length > INSTRUCTION_MATERIAL_MAX_ITEMS) {
+        alert(`교수자료는 최대 ${INSTRUCTION_MATERIAL_MAX_ITEMS}장까지 저장할 수 있습니다.`);
+        throw new Error('too many instruction materials');
+      }
+      const oversized = files.find(file => file.size > INSTRUCTION_MATERIAL_MAX_BYTES);
+      if (oversized) {
+        alert(`교수자료는 파일당 3MB 이하만 저장할 수 있습니다. (${oversized.name})`);
         throw new Error('instruction material too large');
       }
-      material = {
+      const uploadedAt = new Date().toISOString();
+      materials = await Promise.all(files.map(async file => ({
         name: file.name,
         type: file.type || 'application/octet-stream',
         size: file.size,
         dataUrl: await readFileAsDataUrl(file),
-        uploadedAt: new Date().toISOString()
-      };
+        uploadedAt
+      })));
       fileInput.value = '';
     }
 
     state.padletUrl = document.getElementById('padlet-url').value.trim();
     state.notebooklmUrl = document.getElementById('notebooklm-url').value.trim();
     state.notebooklmContext = document.getElementById('notebooklm-context').value.trim();
-    state.instructionalMaterial = normalizeInstructionalMaterial(material);
+    state.instructionalMaterial = normalizeInstructionalMaterials(materials);
     state.connectionLink = document.getElementById('connection-link').value.trim();
     state.connectionActivity = document.getElementById('connection-activity').value.trim();
     state.internalizationLink = document.getElementById('internalization-link').value.trim();
@@ -2911,12 +3168,12 @@ ${studentEntries}`;
   }
 
   async function clearInstructionalMaterial() {
-    if (!state.instructionalMaterial) {
+    if (!getInstructionalMaterials().length) {
       alert('비울 교수자료가 없습니다.');
       return;
     }
     if (!confirm('저장된 교수자료를 삭제할까요?')) return;
-    state.instructionalMaterial = null;
+    state.instructionalMaterial = [];
     const fileInput = document.getElementById('instruction-material-file');
     if (fileInput) fileInput.value = '';
     persistState();
