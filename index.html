@@ -593,6 +593,42 @@
       color: #11613a;
       font-weight: 700;
     }
+    .material-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+    .material-actions .btn {
+      flex: 1 1 180px;
+    }
+    .material-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .material-list-item {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 12px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-button);
+      background: var(--color-surface);
+    }
+    .material-item-name {
+      min-width: 0;
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--color-text);
+      overflow-wrap: anywhere;
+    }
+    .material-item-meta {
+      margin-top: 2px;
+      font-size: 12px;
+      color: var(--color-muted);
+    }
     .instruction-material-viewer {
       border: 1px solid var(--color-border);
       border-radius: var(--radius-card);
@@ -1458,7 +1494,11 @@
         <label class="field-label">명시적 교수에 의한 배움다지기 교수자료</label>
         <input type="file" id="instruction-material-file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.doc,.docx,.ppt,.pptx" multiple>
         <div id="instruction-material-status" class="material-status">저장된 교수자료가 없습니다.</div>
-        <button class="btn btn-sm" style="margin-top: 8px;" onclick="clearInstructionalMaterial()">교수자료 비우기</button>
+        <div class="material-actions">
+          <button class="btn btn-primary btn-sm" onclick="saveInstructionalMaterialFiles()">선택한 교수자료 저장</button>
+          <button class="btn btn-sm" onclick="clearInstructionalMaterial()">교수자료 모두 비우기</button>
+        </div>
+        <div id="instruction-material-list" class="material-list"></div>
       </div>
       <div class="field-group">
         <label class="field-label">함께 연결하기 링크</label>
@@ -2123,6 +2163,7 @@
         : '저장된 교수자료가 없습니다.';
       materialStatus.classList.toggle('ready', Boolean(materials.length));
     }
+    renderInstructionalMaterialAdminList();
     renderSituationOptions('admin-situation-select', true);
     const adminSituationSelect = document.getElementById('admin-situation-select');
     if (adminSituationSelect) {
@@ -2174,6 +2215,32 @@
     } else {
       select.value = '';
     }
+  }
+
+  function formatFileSize(bytes) {
+    const value = Number(bytes) || 0;
+    if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)}MB`;
+    if (value >= 1024) return `${Math.round(value / 1024)}KB`;
+    return `${value}B`;
+  }
+
+  function renderInstructionalMaterialAdminList() {
+    const listEl = document.getElementById('instruction-material-list');
+    if (!listEl) return;
+    const materials = getInstructionalMaterials();
+    if (!materials.length) {
+      listEl.innerHTML = '<div class="empty-state">저장된 교수자료가 없습니다.</div>';
+      return;
+    }
+    listEl.innerHTML = materials.map((material, index) => `
+      <div class="material-list-item">
+        <div>
+          <div class="material-item-name">${index + 1}. ${escapeHtml(material.name)}</div>
+          <div class="material-item-meta">${escapeHtml(formatFileSize(material.size))}</div>
+        </div>
+        <button class="btn btn-sm" onclick="deleteInstructionalMaterial(${index})">삭제</button>
+      </div>
+    `).join('');
   }
 
   function renderSituationList() {
@@ -3110,38 +3177,69 @@ ${studentEntries}`;
   }
 
   async function readClassMenuSettingsFromAdmin() {
-    const fileInput = document.getElementById('instruction-material-file');
-    const files = Array.from(fileInput?.files || []);
-    let materials = getInstructionalMaterials();
-
-    if (files.length) {
-      if (files.length > INSTRUCTION_MATERIAL_MAX_ITEMS) {
-        alert(`교수자료는 최대 ${INSTRUCTION_MATERIAL_MAX_ITEMS}장까지 저장할 수 있습니다.`);
-        throw new Error('too many instruction materials');
-      }
-      const oversized = files.find(file => file.size > INSTRUCTION_MATERIAL_MAX_BYTES);
-      if (oversized) {
-        alert(`교수자료는 파일당 3MB 이하만 저장할 수 있습니다. (${oversized.name})`);
-        throw new Error('instruction material too large');
-      }
-      const uploadedAt = new Date().toISOString();
-      materials = await Promise.all(files.map(async file => ({
-        name: file.name,
-        type: file.type || 'application/octet-stream',
-        size: file.size,
-        dataUrl: await readFileAsDataUrl(file),
-        uploadedAt
-      })));
-      fileInput.value = '';
-    }
-
     state.padletUrl = document.getElementById('padlet-url').value.trim();
     state.notebooklmUrl = document.getElementById('notebooklm-url').value.trim();
     state.notebooklmContext = document.getElementById('notebooklm-context').value.trim();
-    state.instructionalMaterial = normalizeInstructionalMaterials(materials);
+    state.instructionalMaterial = getInstructionalMaterials();
     state.connectionLink = document.getElementById('connection-link').value.trim();
     state.connectionActivity = document.getElementById('connection-activity').value.trim();
     state.internalizationLink = document.getElementById('internalization-link').value.trim();
+  }
+
+  async function saveInstructionalMaterialFiles() {
+    const fileInput = document.getElementById('instruction-material-file');
+    const files = Array.from(fileInput?.files || []);
+    if (!files.length) {
+      alert('저장할 교수자료 파일을 먼저 선택해 주세요.');
+      return;
+    }
+
+    const currentMaterials = getInstructionalMaterials();
+    if (currentMaterials.length + files.length > INSTRUCTION_MATERIAL_MAX_ITEMS) {
+      alert(`교수자료는 최대 ${INSTRUCTION_MATERIAL_MAX_ITEMS}장까지 저장할 수 있습니다. 현재 ${currentMaterials.length}장이 저장되어 있습니다.`);
+      return;
+    }
+
+    const oversized = files.find(file => file.size > INSTRUCTION_MATERIAL_MAX_BYTES);
+    if (oversized) {
+      alert(`교수자료는 파일당 3MB 이하만 저장할 수 있습니다. (${oversized.name})`);
+      return;
+    }
+
+    const uploadedAt = new Date().toISOString();
+    const newMaterials = await Promise.all(files.map(async file => ({
+      name: file.name,
+      type: file.type || 'application/octet-stream',
+      size: file.size,
+      dataUrl: await readFileAsDataUrl(file),
+      uploadedAt
+    })));
+
+    state.instructionalMaterial = normalizeInstructionalMaterials([
+      ...currentMaterials,
+      ...newMaterials
+    ]);
+    fileInput.value = '';
+    persistState();
+    const serverSaved = await syncClassSettingsToServer();
+    renderAdminFields();
+    showSaveNotice(serverSaved);
+  }
+
+  async function deleteInstructionalMaterial(index) {
+    const materials = getInstructionalMaterials();
+    const material = materials[index];
+    if (!material) return;
+    if (!confirm(`${material.name} 자료를 삭제할까요?`)) return;
+    materials.splice(index, 1);
+    state.instructionalMaterial = normalizeInstructionalMaterials(materials);
+    persistState();
+    const serverSaved = await syncClassSettingsToServer();
+    renderAdminFields();
+    if (document.getElementById('student-instruction-material')?.classList.contains('active')) {
+      renderInstructionalMaterialViewer();
+    }
+    showSaveNotice(serverSaved);
   }
 
   function showSaveNotice(serverSaved) {
